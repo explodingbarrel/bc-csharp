@@ -71,7 +71,7 @@ namespace Org.BouncyCastle.Utilities.IO.Pem.Tests
         {
             //junit.textui.TestRunner.run(suite());
             EventListener el = new NullListener();
-            Suite.Run(el);
+			Suite.Run(el,null);
         }
 	}
 }

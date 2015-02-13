@@ -41,7 +41,7 @@ namespace Org.BouncyCastle.Crypto.Tests
         {
             //junit.textui.TestRunner.run(suite());
             EventListener el = new NullListener();
-            Suite.Run(el);
+            Suite.Run(el,null);
         }
 	}
 }

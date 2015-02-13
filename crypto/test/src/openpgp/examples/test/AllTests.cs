@@ -387,7 +387,7 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Examples.Tests
 		{
 			//junit.textui.TestRunner.run(suite());
 			EventListener el = new NullListener();
-			suite().Run(el);
+			suite().Run(el,null);
 		}
 
 		public static TestSuite suite()
