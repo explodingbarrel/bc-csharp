@@ -2,6 +2,7 @@ using System;
 
 using NUnit.Framework;
 
+using Org.BouncyCastle.Asn1.X9;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Math;
@@ -375,37 +376,22 @@ namespace Org.BouncyCastle.Tests
         [Test]
         public void TestECDH()
         {
-            doTestECDH("ECDH");
+            DoTestECDH("ECDH");
         }
 
         [Test]
         public void TestECDHC()
         {
-            doTestECDH("ECDHC");
+            DoTestECDH("ECDHC");
         }
 
-        private void doTestECDH(
-            string algorithm)
+        private void DoTestECDH(string algorithm)
         {
             IAsymmetricCipherKeyPairGenerator g = GeneratorUtilities.GetKeyPairGenerator(algorithm);
 
-//			EllipticCurve curve = new EllipticCurve(
-//				new ECFieldFp(new BigInteger("883423532389192164791648750360308885314476597252960362792450860609699839")), // q
-//				new BigInteger("7fffffffffffffffffffffff7fffffffffff8000000000007ffffffffffc", 16), // a
-//				new BigInteger("6b016c3bdcf18941d0d654921475ca71a9db2fb27d1d37796185c2942c0a", 16)); // b
-            ECCurve curve = new FpCurve(
-                new BigInteger("883423532389192164791648750360308885314476597252960362792450860609699839"), // q
-                new BigInteger("7fffffffffffffffffffffff7fffffffffff8000000000007ffffffffffc", 16), // a
-                new BigInteger("6b016c3bdcf18941d0d654921475ca71a9db2fb27d1d37796185c2942c0a", 16)); // b
+            X9ECParameters x9 = ECNamedCurveTable.GetByName("prime239v1");
+            ECDomainParameters ecSpec = new ECDomainParameters(x9.Curve, x9.G, x9.N, x9.H);
 
-            ECDomainParameters ecSpec = new ECDomainParameters(
-                curve,
-//				ECPointUtil.DecodePoint(curve, Hex.Decode("020ffa963cdca8816ccc33b8642bedf905c3d358573d3f27fbbd3b3cb9aaaf")), // G
-                curve.DecodePoint(Hex.Decode("020ffa963cdca8816ccc33b8642bedf905c3d358573d3f27fbbd3b3cb9aaaf")), // G
-                new BigInteger("883423532389192164791648750360308884807550341691627752275345424702807307"), // n
-                BigInteger.One); //1); // h
-
-//			g.initialize(ecSpec, new SecureRandom());
             g.Init(new ECKeyGenerationParameters(ecSpec, new SecureRandom()));
 
             //
@@ -429,11 +415,6 @@ namespace Org.BouncyCastle.Tests
             //
             // agreement
             //
-//			aKeyAgreeBasic.doPhase(bKeyPair.Public, true);
-//			bKeyAgreeBasic.doPhase(aKeyPair.Public, true);
-//
-//			BigInteger k1 = new BigInteger(aKeyAgreeBasic.generateSecret());
-//			BigInteger k2 = new BigInteger(bKeyAgreeBasic.generateSecret());
             BigInteger k1 = aKeyAgreeBasic.CalculateAgreement(bKeyPair.Public);
             BigInteger k2 = bKeyAgreeBasic.CalculateAgreement(aKeyPair.Public);
 
@@ -633,6 +614,98 @@ namespace Org.BouncyCastle.Tests
             }
         }
 
+        internal static readonly string Message = "Hello";
+
+        internal static readonly SecureRandom rand = new SecureRandom();
+
+        public static DHParameters Ike2048()
+        {
+            BigInteger p = new BigInteger(
+                "ffffffffffffffffc90fdaa22168c234c4c6628b80dc1cd129024e088a67cc74"
+                    + "020bbea63b139b22514a08798e3404ddef9519b3cd3a431b302b0a6df25f1437"
+                    + "4fe1356d6d51c245e485b576625e7ec6f44c42e9a637ed6b0bff5cb6f406b7ed"
+                    + "ee386bfb5a899fa5ae9f24117c4b1fe649286651ece45b3dc2007cb8a163bf05"
+                    + "98da48361c55d39a69163fa8fd24cf5f83655d23dca3ad961c62f356208552bb"
+                    + "9ed529077096966d670c354e4abc9804f1746c08ca18217c32905e462e36ce3b"
+                    + "e39e772c180e86039b2783a2ec07a28fb5c55df06f4c52c9de2bcbf695581718"
+                    + "3995497cea956ae515d2261898fa051015728e5a8aacaa68ffffffffffffffff", 16);
+            BigInteger g = new BigInteger("2");
+            return new DHParameters(p, g);
+        }
+
+        internal class DHWeakPubKey
+            : DHPublicKeyParameters
+        {
+            private readonly BigInteger weakY;
+
+            public DHWeakPubKey(BigInteger weakY, DHParameters parameters)
+			    : base(BigInteger.Two, parameters)
+            {
+                this.weakY = weakY;
+            }
+
+            public override BigInteger Y
+            {
+                get { return weakY; }
+            }
+        }
+
+        /**
+         * Tests whether a provider accepts invalid public keys that result in predictable shared secrets.
+         * This test is based on RFC 2785, Section 4 and NIST SP 800-56A,
+         * If an attacker can modify both public keys in an ephemeral-ephemeral key agreement scheme then
+         * it may be possible to coerce both parties into computing the same predictable shared key.
+         * <p/>
+         * Note: the test is quite whimsical. If the prime p is not a safe prime then the provider itself
+         * cannot prevent all small-subgroup attacks because of the missing parameter q in the
+         * Diffie-Hellman parameters. Implementations must add additional countermeasures such as the ones
+         * proposed in RFC 2785.
+         */
+        [Test]
+        public void TestSubgroupConfinement()
+        {
+            DHParameters parameters = Ike2048();
+            BigInteger p = parameters.P, g = parameters.G;
+
+            IAsymmetricCipherKeyPairGenerator keyGen = GeneratorUtilities.GetKeyPairGenerator("DH");
+
+            //keyGen.initialize(params);
+            keyGen.Init(new DHKeyGenerationParameters(new SecureRandom(), parameters));
+
+            AsymmetricCipherKeyPair kp = keyGen.GenerateKeyPair();
+            AsymmetricKeyParameter priv = kp.Private;
+
+            IBasicAgreement ka = AgreementUtilities.GetBasicAgreement("DH");
+
+            BigInteger[] weakPublicKeys = { BigInteger.Zero, BigInteger.One, p.Subtract(BigInteger.One), p,
+                p.Add(BigInteger.One), BigInteger.One.Negate() };
+
+            foreach (BigInteger weakKey in weakPublicKeys)
+            {
+                try
+                {
+                    new DHPublicKeyParameters(weakKey, parameters);
+                    Fail("Generated weak public key");
+                }
+                catch (ArgumentException ex)
+                {
+                    IsTrue("wrong message (constructor)", ex.Message.StartsWith("invalid DH public key"));
+                }
+
+                ka.Init(priv);
+
+                try
+                {
+                    ka.CalculateAgreement(new DHWeakPubKey(weakKey, parameters));
+                    Fail("Generated secrets with weak public key");
+                }
+                catch (ArgumentException ex)
+                {
+                    IsTrue("wrong message (CalculateAgreement)", "Diffie-Hellman public key is weak".Equals(ex.Message));
+                }
+            }
+        }
+
         public override void PerformTest()
         {
             TestEnc();
@@ -640,6 +713,7 @@ namespace Org.BouncyCastle.Tests
             TestECDH();
             TestECDHC();
             TestExceptions();
+            TestSubgroupConfinement();
         }
 
         public static void Main(

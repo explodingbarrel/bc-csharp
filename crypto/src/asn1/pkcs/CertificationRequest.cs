@@ -47,7 +47,8 @@ namespace Org.BouncyCastle.Asn1.Pkcs
             this.sigBits = signature;
         }
 
-		public CertificationRequest(
+        [Obsolete("Use 'GetInstance' instead")]
+        public CertificationRequest(
             Asn1Sequence seq)
         {
 			if (seq.Count != 3)
@@ -73,7 +74,12 @@ namespace Org.BouncyCastle.Asn1.Pkcs
 			get { return sigBits; }
 		}
 
-		public override Asn1Object ToAsn1Object()
+        public byte[] GetSignatureOctets()
+        {
+            return sigBits.GetOctets();
+        }
+
+        public override Asn1Object ToAsn1Object()
         {
 			return new DerSequence(reqInfo, sigAlgId, sigBits);
         }

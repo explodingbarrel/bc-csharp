@@ -23,7 +23,7 @@ namespace Org.BouncyCastle.Asn1
                 return (DerEnumerated)obj;
             }
 
-            throw new ArgumentException("illegal object in GetInstance: " + obj.GetType().Name);
+            throw new ArgumentException("illegal object in GetInstance: " + Platform.GetTypeName(obj));
         }
 
         /**
@@ -62,9 +62,19 @@ namespace Org.BouncyCastle.Asn1
         }
 
         public DerEnumerated(
-            byte[]   bytes)
+            byte[] bytes)
         {
-            this.bytes = bytes;
+            if (bytes.Length > 1)
+            {
+                if ((bytes[0] == 0 && (bytes[1] & 0x80) == 0)
+                    || (bytes[0] == (byte)0xff && (bytes[1] & 0x80) != 0))
+                {
+                    if (!DerInteger.AllowUnsafe())
+                        throw new ArgumentException("malformed enumerated");
+                }
+            }
+
+            this.bytes = Arrays.Clone(bytes);
         }
 
         public BigInteger Value

@@ -13,18 +13,18 @@ namespace Org.BouncyCastle.Crypto.Signers
      * EC-NR as described in IEEE 1363-2000
      */
     public class ECNRSigner
-        : IDsa
+        : IDsaExt
     {
         private bool			forSigning;
         private ECKeyParameters	key;
         private SecureRandom	random;
 
-        public string AlgorithmName
+        public virtual string AlgorithmName
         {
             get { return "ECNR"; }
         }
 
-        public void Init(
+        public virtual void Init(
             bool				forSigning,
             ICipherParameters	parameters)
         {
@@ -58,6 +58,11 @@ namespace Org.BouncyCastle.Crypto.Signers
             }
         }
 
+        public virtual BigInteger Order
+        {
+            get { return key.Parameters.N; }
+        }
+
         // Section 7.2.5 ECSP-NR, pg 34
         /**
          * generate a signature for the given message using the key we were
@@ -68,7 +73,7 @@ namespace Org.BouncyCastle.Crypto.Signers
          * @param digest  the digest to be signed.
          * @exception DataLengthException if the digest is longer than the key allows
          */
-        public BigInteger[] GenerateSignature(
+        public virtual BigInteger[] GenerateSignature(
             byte[] message)
         {
             if (!this.forSigning)
@@ -77,7 +82,7 @@ namespace Org.BouncyCastle.Crypto.Signers
                 throw new InvalidOperationException("not initialised for signing");
             }
 
-            BigInteger n = ((ECPrivateKeyParameters) this.key).Parameters.N;
+            BigInteger n = Order;
             int nBitLength = n.BitLength;
 
             BigInteger e = new BigInteger(1, message);
@@ -134,7 +139,7 @@ namespace Org.BouncyCastle.Crypto.Signers
          * @param s       the s value of the signature.
          * @exception DataLengthException if the digest is longer than the key allows
          */
-        public bool VerifySignature(
+        public virtual bool VerifySignature(
             byte[]		message,
             BigInteger	r,
             BigInteger	s)

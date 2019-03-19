@@ -3,7 +3,7 @@ using System.Collections;
 using System.IO;
 using System.Text;
 
-#if SILVERLIGHT
+#if SILVERLIGHT || PORTABLE
 using System.Collections.Generic;
 #endif
 
@@ -159,6 +159,11 @@ namespace Org.BouncyCastle.Asn1.X509
         public static readonly DerObjectIdentifier TelephoneNumber = X509ObjectIdentifiers.id_at_telephoneNumber;
 
         /**
+         * id-at-organizationIdentifier
+         */
+        public static readonly DerObjectIdentifier OrganizationIdentifier = X509ObjectIdentifiers.id_at_organizationIdentifier;
+
+        /**
          * id-at-name
          */
         public static readonly DerObjectIdentifier Name = X509ObjectIdentifiers.id_at_name;
@@ -203,7 +208,7 @@ namespace Org.BouncyCastle.Asn1.X509
 
         private static readonly bool[] defaultReverse = { false };
 
-#if SILVERLIGHT
+#if SILVERLIGHT || PORTABLE
         /**
         * default look up table translating OID values into their common symbols following
         * the convention in RFC 2253 with a few extras
@@ -399,7 +404,7 @@ namespace Org.BouncyCastle.Asn1.X509
                     if (derValue is IAsn1String && !(derValue is DerUniversalString))
                     {
                         string v = ((IAsn1String)derValue).GetString();
-                        if (v.StartsWith("#"))
+                        if (Platform.StartsWith(v, "#"))
                         {
                             v = "\\" + v;
                         }
@@ -499,12 +504,6 @@ namespace Org.BouncyCastle.Asn1.X509
             }
         }
 
-//		private static bool IsEncoded(
-//			string s)
-//		{
-//			return s.StartsWith("#");
-//		}
-
         /**
         * Takes an X509 dir name as a string of the format "C=AU, ST=Victoria", or
         * some such, converting it into an ordered set of name attributes.
@@ -581,7 +580,7 @@ namespace Org.BouncyCastle.Asn1.X509
             string		name,
             IDictionary lookUp)
         {
-            if (Platform.ToUpperInvariant(name).StartsWith("OID."))
+            if (Platform.StartsWith(Platform.ToUpperInvariant(name), "OID."))
             {
                 return new DerObjectIdentifier(name.Substring(4));
             }
@@ -724,7 +723,7 @@ namespace Org.BouncyCastle.Asn1.X509
                 {
                     string val = (string)values[i];
 
-                    if (val.StartsWith("\\#"))
+                    if (Platform.StartsWith(val, "\\#"))
                     {
                         val = val.Substring(1);
                     }
@@ -911,7 +910,7 @@ namespace Org.BouncyCastle.Asn1.X509
         {
             string v = Platform.ToLowerInvariant(s).Trim();
 
-            if (v.StartsWith("#"))
+            if (Platform.StartsWith(v, "#"))
             {
                 Asn1Object obj = decodeObject(v);
 
@@ -987,7 +986,7 @@ namespace Org.BouncyCastle.Asn1.X509
 
             int end = buf.Length;
 
-            if (val.StartsWith("\\#"))
+            if (Platform.StartsWith(val, "\\#"))
             {
                 index += 2;
             }
@@ -1027,7 +1026,7 @@ namespace Org.BouncyCastle.Asn1.X509
             bool		reverse,
             IDictionary oidSymbols)
         {
-#if SILVERLIGHT
+#if SILVERLIGHT || PORTABLE
             List<object> components = new List<object>();
 #else
             ArrayList components = new ArrayList();

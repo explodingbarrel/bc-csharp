@@ -34,8 +34,12 @@ namespace Org.BouncyCastle.Crypto.Agreement
             MqvPublicParameters pubParams = (MqvPublicParameters)pubKey;
 
             ECPrivateKeyParameters staticPrivateKey = privParams.StaticPrivateKey;
+            ECDomainParameters parameters = staticPrivateKey.Parameters;
 
-            ECPoint agreement = CalculateMqvAgreement(staticPrivateKey.Parameters, staticPrivateKey,
+            if (!parameters.Equals(pubParams.StaticPublicKey.Parameters))
+                throw new InvalidOperationException("ECMQV public key components have wrong domain parameters");
+
+            ECPoint agreement = CalculateMqvAgreement(parameters, staticPrivateKey,
                 privParams.EphemeralPrivateKey, privParams.EphemeralPublicKey,
                 pubParams.StaticPublicKey, pubParams.EphemeralPublicKey).Normalize();
 
@@ -60,16 +64,9 @@ namespace Org.BouncyCastle.Crypto.Agreement
 
             ECCurve curve = parameters.Curve;
 
-            ECPoint[] points = new ECPoint[]{
-                // The Q2U public key is optional
-                ECAlgorithms.ImportPoint(curve, Q2U == null ? parameters.G.Multiply(d2U.D) : Q2U.Q),
-                ECAlgorithms.ImportPoint(curve, Q1V.Q),
-                ECAlgorithms.ImportPoint(curve, Q2V.Q)
-            };
-
-            curve.NormalizeAll(points);
-
-            ECPoint q2u = points[0], q1v = points[1], q2v = points[2];
+            ECPoint q2u = ECAlgorithms.CleanPoint(curve, Q2U.Q);
+            ECPoint q1v = ECAlgorithms.CleanPoint(curve, Q1V.Q);
+            ECPoint q2v = ECAlgorithms.CleanPoint(curve, Q2V.Q);
 
             BigInteger x = q2u.AffineXCoord.ToBigInteger();
             BigInteger xBar = x.Mod(powE);

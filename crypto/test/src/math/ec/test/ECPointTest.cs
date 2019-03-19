@@ -3,11 +3,8 @@ using System.Collections;
 
 using NUnit.Framework;
 
-using Org.BouncyCastle.Asn1.Sec;
 using Org.BouncyCastle.Asn1.X9;
 using Org.BouncyCastle.Crypto.EC;
-using Org.BouncyCastle.Math;
-using Org.BouncyCastle.Math.EC;
 using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.Collections;
@@ -26,11 +23,7 @@ namespace Org.BouncyCastle.Math.EC.Tests
         /**
          * Random source used to generate random points
          */
-        private SecureRandom secRand = new SecureRandom();
-
-//		private ECPointTest.Fp fp = null;
-
-//		private ECPointTest.F2m f2m = null;
+        private SecureRandom Random = new SecureRandom();
 
         /**
          * Nested class containing sample literature values for <code>Fp</code>.
@@ -113,12 +106,9 @@ namespace Org.BouncyCastle.Math.EC.Tests
         }
 
         [SetUp]
-        public void setUp()
+        public void SetUp()
         {
-//			fp = new ECPointTest.Fp();
             Fp.CreatePoints();
-
-//			f2m = new ECPointTest.F2m();
             F2m.CreatePoints();
         }
 
@@ -301,7 +291,7 @@ namespace Org.BouncyCastle.Math.EC.Tests
          */
         private void ImplTestMultiply(ECPoint p, int numBits)
         {
-            BigInteger k = new BigInteger(numBits, secRand);
+            BigInteger k = new BigInteger(numBits, Random);
             ECPoint reff = ECAlgorithms.ReferenceMultiply(p, k);
             ECPoint q = p.Multiply(k);
             AssertPointsEqual("ECPoint.Multiply is incorrect", reff, q);
@@ -428,13 +418,42 @@ namespace Org.BouncyCastle.Math.EC.Tests
                 int count = 0;
                 while (count < 10)
                 {
-                    BigInteger nonSquare = BigIntegers.CreateRandomInRange(BigInteger.Two, pMinusOne, secRand);
+                    BigInteger nonSquare = BigIntegers.CreateRandomInRange(BigInteger.Two, pMinusOne, Random);
                     if (!nonSquare.ModPow(legendreExponent, p).Equals(BigInteger.One))
                     {
                         ECFieldElement root = c.FromBigInteger(nonSquare).Sqrt();
                         Assert.IsNull(root);
                         ++count;
                     }
+                }
+            }
+            else if (ECAlgorithms.IsF2mCurve(c))
+            {
+                int m = c.FieldSize;
+                BigInteger x = new BigInteger(m, Random);
+                ECFieldElement fe = c.FromBigInteger(x);
+                for (int i = 0; i < 100; ++i)
+                {
+                    ECFieldElement sq = fe.Square();
+                    ECFieldElement check = sq.Sqrt();
+                    Assert.AreEqual(fe, check);
+                    fe = sq;
+                }
+            }
+        }
+
+        private void ImplValidityTest(ECCurve c, ECPoint g)
+        {
+            Assert.IsTrue(g.IsValid());
+
+            BigInteger h = c.Cofactor;
+            if (h != null && h.CompareTo(BigInteger.One) > 0)
+            {
+                if (ECAlgorithms.IsF2mCurve(c))
+                {
+                    ECPoint order2 = c.CreatePoint(BigInteger.Zero, c.B.Sqrt().ToBigInteger());
+                    ECPoint bad = g.Add(order2);
+                    Assert.IsFalse(bad.IsValid());
                 }
             }
         }
@@ -461,12 +480,14 @@ namespace Org.BouncyCastle.Math.EC.Tests
                     }
 
                     // The generator is multiplied by random b to get random q
-                    BigInteger b = new BigInteger(n.BitLength, secRand);
+                    BigInteger b = new BigInteger(n.BitLength, Random);
                     ECPoint q = g.Multiply(b).Normalize();
 
                     ImplAddSubtractMultiplyTwiceEncodingTest(c, q, n);
 
                     ImplSqrtTest(c);
+
+                    ImplValidityTest(c, g);
                 }
             }
         }
@@ -483,25 +504,66 @@ namespace Org.BouncyCastle.Math.EC.Tests
             CollectionUtilities.AddRange(names, ECNamedCurveTable.Names);
             CollectionUtilities.AddRange(names, CustomNamedCurves.Names);
 
-            foreach (string name in names)
+            ISet uniqNames = new HashSet(names);
+
+            foreach (string name in uniqNames)
             {
-                X9ECParameters x9ECParameters = ECNamedCurveTable.GetByName(name);
-                if (x9ECParameters != null)
+                X9ECParameters x9A = ECNamedCurveTable.GetByName(name);
+                X9ECParameters x9B = CustomNamedCurves.GetByName(name);
+
+                if (x9A != null && x9B != null)
                 {
-                    ImplAddSubtractMultiplyTwiceEncodingTestAllCoords(x9ECParameters);
+                    Assert.AreEqual(x9A.Curve.Field, x9B.Curve.Field);
+                    Assert.AreEqual(x9A.Curve.A.ToBigInteger(), x9B.Curve.A.ToBigInteger());
+                    Assert.AreEqual(x9A.Curve.B.ToBigInteger(), x9B.Curve.B.ToBigInteger());
+                    AssertOptionalValuesAgree(x9A.Curve.Cofactor, x9B.Curve.Cofactor);
+                    AssertOptionalValuesAgree(x9A.Curve.Order, x9B.Curve.Order);
+
+                    AssertPointsEqual("Custom curve base-point inconsistency", x9A.G, x9B.G);
+
+                    Assert.AreEqual(x9A.H, x9B.H);
+                    Assert.AreEqual(x9A.N, x9B.N);
+                    AssertOptionalValuesAgree(x9A.GetSeed(), x9B.GetSeed());
+
+                    BigInteger k = new BigInteger(x9A.N.BitLength, Random);
+                    ECPoint pA = x9A.G.Multiply(k);
+                    ECPoint pB = x9B.G.Multiply(k);
+                    AssertPointsEqual("Custom curve multiplication inconsistency", pA, pB);
                 }
 
-                x9ECParameters = CustomNamedCurves.GetByName(name);
-                if (x9ECParameters != null)
+                if (x9A != null)
                 {
-                    ImplAddSubtractMultiplyTwiceEncodingTestAllCoords(x9ECParameters);
+                    ImplAddSubtractMultiplyTwiceEncodingTestAllCoords(x9A);
+                }
+
+                if (x9B != null)
+                {
+                    ImplAddSubtractMultiplyTwiceEncodingTestAllCoords(x9B);
                 }
             }
         }
 
         private void AssertPointsEqual(string message, ECPoint a, ECPoint b)
         {
+            // NOTE: We intentionally test points for equality in both directions
             Assert.AreEqual(a, b, message);
+            Assert.AreEqual(b, a, message);
+        }
+
+        private void AssertOptionalValuesAgree(object a, object b)
+        {
+            if (a != null && b != null)
+            {
+                Assert.AreEqual(a, b);
+            }
+        }
+
+        private void AssertOptionalValuesAgree(byte[] a, byte[] b)
+        {
+            if (a != null && b != null)
+            {
+                Assert.IsTrue(Arrays.AreEqual(a, b));
+            }
         }
     }
 }

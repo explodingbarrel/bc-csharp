@@ -1,6 +1,7 @@
 using System;
 
 using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Crypto.Engines
 {
@@ -8,24 +9,14 @@ namespace Org.BouncyCastle.Crypto.Engines
     * A class that provides a basic International Data Encryption Algorithm (IDEA) engine.
     * <p>
     * This implementation is based on the "HOWTO: INTERNATIONAL DATA ENCRYPTION ALGORITHM"
-    * implementation summary by Fauzan Mirza (F.U.Mirza@sheffield.ac.uk). (baring 1 typo at the
-    * end of the mulinv function!).
+    * implementation summary by Fauzan Mirza (F.U.Mirza@sheffield.ac.uk). (barring 1 typo at the
+    * end of the MulInv function!).
     * </p>
     * <p>
     * It can be found at ftp://ftp.funet.fi/pub/crypt/cryptography/symmetric/idea/
     * </p>
     * <p>
-    * Note 1: This algorithm is patented in the USA, Japan, and Europe including
-    * at least Austria, France, Germany, Italy, Netherlands, Spain, Sweden, Switzerland
-    * and the United Kingdom. Non-commercial use is free, however any commercial
-    * products are liable for royalties. Please see
-    * <a href="http://www.mediacrypt.com">www.mediacrypt.com</a> for
-    * further details. This announcement has been included at the request of
-    * the patent holders.
-    * </p>
-    * <p>
-    * Note 2: Due to the requests concerning the above, this algorithm is now only
-    * included in the extended assembly. It is not included in the default distributions.
+    * Note: This algorithm was patented in the USA, Japan and Europe. These patents expired in 2011/2012.
     * </p>
     */
     public class IdeaEngine
@@ -47,54 +38,48 @@ namespace Org.BouncyCastle.Crypto.Engines
         * @exception ArgumentException if the parameters argument is
         * inappropriate.
         */
-        public void Init(
+        public virtual void Init(
             bool				forEncryption,
             ICipherParameters	parameters)
         {
             if (!(parameters is KeyParameter))
-                throw new ArgumentException("invalid parameter passed to IDEA init - " + parameters.GetType().ToString());
+                throw new ArgumentException("invalid parameter passed to IDEA init - " + Platform.GetTypeName(parameters));
 
             workingKey = GenerateWorkingKey(forEncryption,
                 ((KeyParameter)parameters).GetKey());
         }
 
-        public string AlgorithmName
+        public virtual string AlgorithmName
         {
             get { return "IDEA"; }
         }
 
-        public bool IsPartialBlockOkay
+        public virtual bool IsPartialBlockOkay
         {
             get { return false; }
         }
 
-        public int GetBlockSize()
+        public virtual int GetBlockSize()
         {
             return BLOCK_SIZE;
         }
 
-        public int ProcessBlock(
+        public virtual int ProcessBlock(
             byte[] input,
             int inOff,
             byte[] output,
             int outOff)
         {
             if (workingKey == null)
-            {
                 throw new InvalidOperationException("IDEA engine not initialised");
-            }
-            if ((inOff + BLOCK_SIZE) > input.Length)
-            {
-                throw new DataLengthException("input buffer too short");
-            }
-            if ((outOff + BLOCK_SIZE) > output.Length)
-            {
-                throw new DataLengthException("output buffer too short");
-            }
+
+            Check.DataLength(input, inOff, BLOCK_SIZE, "input buffer too short");
+            Check.OutputLength(output, outOff, BLOCK_SIZE, "output buffer too short");
+
             IdeaFunc(workingKey, input, inOff, output, outOff);
             return BLOCK_SIZE;
         }
-        public void Reset()
+        public virtual void Reset()
         {
         }
         private static readonly int    MASK = 0xffff;

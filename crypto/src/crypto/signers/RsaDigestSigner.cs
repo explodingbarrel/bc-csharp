@@ -21,7 +21,7 @@ namespace Org.BouncyCastle.Crypto.Signers
     public class RsaDigestSigner
         : ISigner
     {
-        private readonly IAsymmetricBlockCipher rsaEngine = new Pkcs1Encoding(new RsaBlindedEngine());
+        private readonly IAsymmetricBlockCipher rsaEngine;
         private readonly AlgorithmIdentifier algId;
         private readonly IDigest digest;
         private bool forSigning;
@@ -59,13 +59,28 @@ namespace Org.BouncyCastle.Crypto.Signers
         }
 
         public RsaDigestSigner(IDigest digest, AlgorithmIdentifier algId)
+            :   this(new RsaCoreEngine(), digest, algId)
         {
+        }
+
+        public RsaDigestSigner(IRsa rsa, IDigest digest, DerObjectIdentifier digestOid)
+            :   this(rsa, digest, new AlgorithmIdentifier(digestOid, DerNull.Instance))
+        {
+        }
+
+        public RsaDigestSigner(IRsa rsa, IDigest digest, AlgorithmIdentifier algId)
+            :   this(new RsaBlindedEngine(rsa), digest, algId)
+        {
+        }
+
+        public RsaDigestSigner(IAsymmetricBlockCipher rsaEngine, IDigest digest, AlgorithmIdentifier algId)
+        {
+            this.rsaEngine = new Pkcs1Encoding(rsaEngine);
             this.digest = digest;
             this.algId = algId;
         }
 
-        [Obsolete]
-        public string AlgorithmName
+        public virtual string AlgorithmName
         {
             get { return digest.AlgorithmName + "withRSA"; }
         }
@@ -76,7 +91,7 @@ namespace Org.BouncyCastle.Crypto.Signers
          * @param forSigning true if for signing, false otherwise
          * @param param necessary parameters.
          */
-        public void Init(
+        public virtual void Init(
             bool				forSigning,
             ICipherParameters	parameters)
         {
@@ -106,7 +121,7 @@ namespace Org.BouncyCastle.Crypto.Signers
         /**
          * update the internal digest with the byte b
          */
-        public void Update(
+        public virtual void Update(
             byte input)
         {
             digest.Update(input);
@@ -115,7 +130,7 @@ namespace Org.BouncyCastle.Crypto.Signers
         /**
          * update the internal digest with the byte array in
          */
-        public void BlockUpdate(
+        public virtual void BlockUpdate(
             byte[]	input,
             int		inOff,
             int		length)
@@ -127,7 +142,7 @@ namespace Org.BouncyCastle.Crypto.Signers
          * Generate a signature for the message we've been loaded with using
          * the key we were initialised with.
          */
-        public byte[] GenerateSignature()
+        public virtual byte[] GenerateSignature()
         {
             if (!forSigning)
                 throw new InvalidOperationException("RsaDigestSigner not initialised for signature generation.");
@@ -143,7 +158,7 @@ namespace Org.BouncyCastle.Crypto.Signers
          * return true if the internal state represents the signature described
          * in the passed in array.
          */
-        public bool VerifySignature(
+        public virtual bool VerifySignature(
             byte[] signature)
         {
             if (forSigning)
@@ -197,7 +212,7 @@ namespace Org.BouncyCastle.Crypto.Signers
             }
         }
 
-        public void Reset()
+        public virtual void Reset()
         {
             digest.Reset();
         }

@@ -4,7 +4,6 @@ using System.IO;
 
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Crypto.Parameters;
-using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.IO;
@@ -18,6 +17,7 @@ namespace Org.BouncyCastle.Crypto.Tls
         protected TlsPskIdentity mPskIdentity;
         protected TlsPskIdentityManager mPskIdentityManager;
 
+        protected TlsDHVerifier mDHVerifier;
         protected DHParameters mDHParameters;
         protected int[] mNamedCurves;
         protected byte[] mClientECPointFormats, mServerECPointFormats;
@@ -36,8 +36,17 @@ namespace Org.BouncyCastle.Crypto.Tls
         protected TlsEncryptionCredentials mServerCredentials = null;
         protected byte[] mPremasterSecret;
 
+        [Obsolete("Use constructor that takes a TlsDHVerifier")]
         public TlsPskKeyExchange(int keyExchange, IList supportedSignatureAlgorithms, TlsPskIdentity pskIdentity,
             TlsPskIdentityManager pskIdentityManager, DHParameters dhParameters, int[] namedCurves,
+            byte[] clientECPointFormats, byte[] serverECPointFormats)
+            :   this(keyExchange, supportedSignatureAlgorithms, pskIdentity, pskIdentityManager, new DefaultTlsDHVerifier(),
+                    dhParameters, namedCurves, clientECPointFormats, serverECPointFormats)
+        {
+        }
+
+        public TlsPskKeyExchange(int keyExchange, IList supportedSignatureAlgorithms, TlsPskIdentity pskIdentity,
+            TlsPskIdentityManager pskIdentityManager, TlsDHVerifier dhVerifier, DHParameters dhParameters, int[] namedCurves,
             byte[] clientECPointFormats, byte[] serverECPointFormats)
             :   base(keyExchange, supportedSignatureAlgorithms)
         {
@@ -54,6 +63,7 @@ namespace Org.BouncyCastle.Crypto.Tls
 
             this.mPskIdentity = pskIdentity;
             this.mPskIdentityManager = pskIdentityManager;
+            this.mDHVerifier = dhVerifier;
             this.mDHParameters = dhParameters;
             this.mNamedCurves = namedCurves;
             this.mClientECPointFormats = clientECPointFormats;
@@ -99,12 +109,12 @@ namespace Org.BouncyCastle.Crypto.Tls
                 if (this.mDHParameters == null)
                     throw new TlsFatalAlert(AlertDescription.internal_error);
 
-                this.mDHAgreePrivateKey = TlsDHUtilities.GenerateEphemeralServerKeyExchange(context.SecureRandom,
+                this.mDHAgreePrivateKey = TlsDHUtilities.GenerateEphemeralServerKeyExchange(mContext.SecureRandom,
                     this.mDHParameters, buf);
             }
             else if (this.mKeyExchange == KeyExchangeAlgorithm.ECDHE_PSK)
             {
-                this.mECAgreePrivateKey = TlsEccUtilities.GenerateEphemeralServerKeyExchange(context.SecureRandom,
+                this.mECAgreePrivateKey = TlsEccUtilities.GenerateEphemeralServerKeyExchange(mContext.SecureRandom,
                     mNamedCurves, mClientECPointFormats, buf);
             }
 
@@ -162,9 +172,8 @@ namespace Org.BouncyCastle.Crypto.Tls
 
             if (this.mKeyExchange == KeyExchangeAlgorithm.DHE_PSK)
             {
-                ServerDHParams serverDHParams = ServerDHParams.Parse(input);
-
-                this.mDHAgreePublicKey = TlsDHUtilities.ValidateDHPublicKey(serverDHParams.PublicKey);
+                this.mDHParameters = TlsDHUtilities.ReceiveDHParameters(mDHVerifier, input);
+                this.mDHAgreePublicKey = new DHPublicKeyParameters(TlsDHUtilities.ReadDHParameter(input), mDHParameters);
             }
             else if (this.mKeyExchange == KeyExchangeAlgorithm.ECDHE_PSK)
             {
@@ -208,21 +217,21 @@ namespace Org.BouncyCastle.Crypto.Tls
 
             TlsUtilities.WriteOpaque16(psk_identity, output);
 
-            context.SecurityParameters.pskIdentity = psk_identity;
+            mContext.SecurityParameters.pskIdentity = psk_identity;
 
             if (this.mKeyExchange == KeyExchangeAlgorithm.DHE_PSK)
             {
-                this.mDHAgreePrivateKey = TlsDHUtilities.GenerateEphemeralClientKeyExchange(context.SecureRandom,
-                    mDHAgreePublicKey.Parameters, output);
+                this.mDHAgreePrivateKey = TlsDHUtilities.GenerateEphemeralClientKeyExchange(mContext.SecureRandom,
+                    mDHParameters, output);
             }
             else if (this.mKeyExchange == KeyExchangeAlgorithm.ECDHE_PSK)
             {
-                this.mECAgreePrivateKey = TlsEccUtilities.GenerateEphemeralClientKeyExchange(context.SecureRandom,
+                this.mECAgreePrivateKey = TlsEccUtilities.GenerateEphemeralClientKeyExchange(mContext.SecureRandom,
                     mServerECPointFormats, mECAgreePublicKey.Parameters, output);
             }
             else if (this.mKeyExchange == KeyExchangeAlgorithm.RSA_PSK)
             {
-                this.mPremasterSecret = TlsRsaUtilities.GenerateEncryptedPreMasterSecret(context,
+                this.mPremasterSecret = TlsRsaUtilities.GenerateEncryptedPreMasterSecret(mContext,
                     this.mRsaServerPublicKey, output);
             }
         }
@@ -235,13 +244,11 @@ namespace Org.BouncyCastle.Crypto.Tls
             if (mPsk == null)
                 throw new TlsFatalAlert(AlertDescription.unknown_psk_identity);
 
-            context.SecurityParameters.pskIdentity = psk_identity;
+            mContext.SecurityParameters.pskIdentity = psk_identity;
 
             if (this.mKeyExchange == KeyExchangeAlgorithm.DHE_PSK)
             {
-                BigInteger Yc = TlsDHUtilities.ReadDHParameter(input);
-
-                this.mDHAgreePublicKey = TlsDHUtilities.ValidateDHPublicKey(new DHPublicKeyParameters(Yc, mDHParameters));
+                this.mDHAgreePublicKey = new DHPublicKeyParameters(TlsDHUtilities.ReadDHParameter(input), mDHParameters);
             }
             else if (this.mKeyExchange == KeyExchangeAlgorithm.ECDHE_PSK)
             {
@@ -255,7 +262,7 @@ namespace Org.BouncyCastle.Crypto.Tls
             else if (this.mKeyExchange == KeyExchangeAlgorithm.RSA_PSK)
             {
                 byte[] encryptedPreMasterSecret;
-                if (TlsUtilities.IsSsl(context))
+                if (TlsUtilities.IsSsl(mContext))
                 {
                     // TODO Do any SSLv3 clients actually include the length?
                     encryptedPreMasterSecret = Streams.ReadAll(input);

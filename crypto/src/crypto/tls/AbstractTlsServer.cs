@@ -113,10 +113,10 @@ namespace Org.BouncyCastle.Crypto.Tls
         public virtual void NotifyFallback(bool isFallback)
         {
             /*
-             * draft-ietf-tls-downgrade-scsv-00 3. If TLS_FALLBACK_SCSV appears in
-             * ClientHello.cipher_suites and the highest protocol version supported by the server is
-             * higher than the version indicated in ClientHello.client_version, the server MUST respond
-             * with an inappropriate_fallback alert.
+             * RFC 7507 3. If TLS_FALLBACK_SCSV appears in ClientHello.cipher_suites and the highest
+             * protocol version supported by the server is higher than the version indicated in
+             * ClientHello.client_version, the server MUST respond with a fatal inappropriate_fallback
+             * alert [..].
              */
             if (isFallback && MaximumVersion.IsLaterVersionOf(mClientVersion))
                 throw new TlsFatalAlert(AlertDescription.inappropriate_fallback);
@@ -140,7 +140,11 @@ namespace Org.BouncyCastle.Crypto.Tls
             if (clientExtensions != null)
             {
                 this.mEncryptThenMacOffered = TlsExtensionsUtilities.HasEncryptThenMacExtension(clientExtensions);
+
                 this.mMaxFragmentLengthOffered = TlsExtensionsUtilities.GetMaxFragmentLengthExtension(clientExtensions);
+                if (mMaxFragmentLengthOffered >= 0 && !MaxFragmentLength.IsValid((byte)mMaxFragmentLengthOffered))
+                    throw new TlsFatalAlert(AlertDescription.illegal_parameter);
+
                 this.mTruncatedHMacOffered = TlsExtensionsUtilities.HasTruncatedHMacExtension(clientExtensions);
 
                 this.mSupportedSignatureAlgorithms = TlsUtilities.GetSignatureAlgorithmsExtension(clientExtensions);
@@ -161,9 +165,13 @@ namespace Org.BouncyCastle.Crypto.Tls
             /*
              * RFC 4429 4. The client MUST NOT include these extensions in the ClientHello message if it
              * does not propose any ECC cipher suites.
+             * 
+             * NOTE: This was overly strict as there may be ECC cipher suites that we don't recognize.
+             * Also, draft-ietf-tls-negotiated-ff-dhe will be overloading the 'elliptic_curves'
+             * extension to explicitly allow FFDHE (i.e. non-ECC) groups.
              */
-            if (!this.mEccCipherSuitesOffered && (this.mNamedCurves != null || this.mClientECPointFormats != null))
-                throw new TlsFatalAlert(AlertDescription.illegal_parameter);
+            //if (!this.mEccCipherSuitesOffered && (this.mNamedCurves != null || this.mClientECPointFormats != null))
+            //    throw new TlsFatalAlert(AlertDescription.illegal_parameter);
         }
 
         public virtual ProtocolVersion GetServerVersion()
@@ -186,11 +194,12 @@ namespace Org.BouncyCastle.Crypto.Tls
         public virtual int GetSelectedCipherSuite()
         {
             /*
-             * TODO RFC 5246 7.4.3. In order to negotiate correctly, the server MUST check any candidate
+             * RFC 5246 7.4.3. In order to negotiate correctly, the server MUST check any candidate
              * cipher suites against the "signature_algorithms" extension before selecting them. This is
              * somewhat inelegant but is a compromise designed to minimize changes to the original
              * cipher suite design.
              */
+            IList sigAlgs = TlsUtilities.GetUsableSignatureAlgorithms(this.mSupportedSignatureAlgorithms);
 
             /*
              * RFC 4429 5.1. A server that receives a ClientHello containing one or both of these
@@ -208,7 +217,8 @@ namespace Org.BouncyCastle.Crypto.Tls
 
                 if (Arrays.Contains(this.mOfferedCipherSuites, cipherSuite)
                     && (eccCipherSuitesEnabled || !TlsEccUtilities.IsEccCipherSuite(cipherSuite))
-                    && TlsUtilities.IsValidCipherSuiteForVersion(cipherSuite, mServerVersion))
+                    && TlsUtilities.IsValidCipherSuiteForVersion(cipherSuite, mServerVersion)
+                    && TlsUtilities.IsValidCipherSuiteForSignatureAlgorithms(cipherSuite, sigAlgs))
                 {
                     return this.mSelectedCipherSuite = cipherSuite;
                 }
@@ -318,6 +328,14 @@ namespace Org.BouncyCastle.Crypto.Tls
                  */
                 throw new TlsFatalAlert(AlertDescription.internal_error);
             }
+        }
+
+        public override TlsCipher GetCipher()
+        {
+            int encryptionAlgorithm = TlsUtilities.GetEncryptionAlgorithm(mSelectedCipherSuite);
+            int macAlgorithm = TlsUtilities.GetMacAlgorithm(mSelectedCipherSuite);
+
+            return mCipherFactory.CreateCipher(mContext, encryptionAlgorithm, macAlgorithm);
         }
 
         public virtual NewSessionTicket GetNewSessionTicket()

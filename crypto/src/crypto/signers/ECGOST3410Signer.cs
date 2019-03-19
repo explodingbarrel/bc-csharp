@@ -13,20 +13,23 @@ namespace Org.BouncyCastle.Crypto.Signers
      * GOST R 34.10-2001 Signature Algorithm
      */
     public class ECGost3410Signer
-        : IDsa
+        : IDsaExt
     {
         private ECKeyParameters key;
         private SecureRandom random;
+        private bool forSigning;
 
-        public string AlgorithmName
+        public virtual string AlgorithmName
         {
-            get { return "ECGOST3410"; }
+            get { return key.AlgorithmName; }
         }
 
-        public void Init(
+        public virtual void Init(
             bool				forSigning,
             ICipherParameters	parameters)
         {
+            this.forSigning = forSigning;
+
             if (forSigning)
             {
                 if (parameters is ParametersWithRandom)
@@ -55,6 +58,11 @@ namespace Org.BouncyCastle.Crypto.Signers
             }
         }
 
+        public virtual BigInteger Order
+        {
+            get { return key.Parameters.N; }
+        }
+
         /**
          * generate a signature for the given message using the key we were
          * initialised with. For conventional GOST3410 the message should be a GOST3411
@@ -62,9 +70,14 @@ namespace Org.BouncyCastle.Crypto.Signers
          *
          * @param message the message that will be verified later.
          */
-        public BigInteger[] GenerateSignature(
+        public virtual BigInteger[] GenerateSignature(
             byte[] message)
         {
+            if (!forSigning)
+            {
+                throw new InvalidOperationException("not initialized for signing");
+            }
+
             byte[] mRev = new byte[message.Length]; // conversion is little-endian
             for (int i = 0; i != mRev.Length; i++)
             {
@@ -110,11 +123,16 @@ namespace Org.BouncyCastle.Crypto.Signers
          * the passed in message (for standard GOST3410 the message should be
          * a GOST3411 hash of the real message to be verified).
          */
-        public bool VerifySignature(
+        public virtual bool VerifySignature(
             byte[]		message,
             BigInteger	r,
             BigInteger	s)
         {
+            if (forSigning)
+            {
+                throw new InvalidOperationException("not initialized for verification");
+            }
+
             byte[] mRev = new byte[message.Length]; // conversion is little-endian
             for (int i = 0; i != mRev.Length; i++)
             {

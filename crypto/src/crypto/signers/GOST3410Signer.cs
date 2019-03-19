@@ -10,17 +10,17 @@ namespace Org.BouncyCastle.Crypto.Signers
 	 * Gost R 34.10-94 Signature Algorithm
 	 */
 	public class Gost3410Signer
-		: IDsa
+		: IDsaExt
 	{
 		private Gost3410KeyParameters key;
 		private SecureRandom random;
 
-		public string AlgorithmName
+        public virtual string AlgorithmName
 		{
 			get { return "GOST3410"; }
 		}
 
-		public void Init(
+        public virtual void Init(
 			bool				forSigning,
 			ICipherParameters	parameters)
 		{
@@ -52,6 +52,11 @@ namespace Org.BouncyCastle.Crypto.Signers
 			}
 		}
 
+        public virtual BigInteger Order
+        {
+            get { return key.Parameters.Q; }
+        }
+
 		/**
 		 * generate a signature for the given message using the key we were
 		 * initialised with. For conventional Gost3410 the message should be a Gost3411
@@ -59,7 +64,7 @@ namespace Org.BouncyCastle.Crypto.Signers
 		 *
 		 * @param message the message that will be verified later.
 		 */
-		public BigInteger[] GenerateSignature(
+        public virtual BigInteger[] GenerateSignature(
 			byte[] message)
 		{
 			byte[] mRev = new byte[message.Length]; // conversion is little-endian
@@ -92,7 +97,7 @@ namespace Org.BouncyCastle.Crypto.Signers
 		 * the passed in message for standard Gost3410 the message should be a
 		 * Gost3411 hash of the real message to be verified.
 		 */
-		public bool VerifySignature(
+        public virtual bool VerifySignature(
 			byte[]		message,
 			BigInteger	r,
 			BigInteger	s)

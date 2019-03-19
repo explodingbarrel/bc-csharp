@@ -6,6 +6,31 @@ namespace Org.BouncyCastle.Utilities
     /// <summary> General string utilities.</summary>
     public abstract class Strings
     {
+
+        public static string ToUpperCase(string original)
+        {
+            bool changed = false;
+            char[] chars = original.ToCharArray();
+
+            for (int i = 0; i != chars.Length; i++)
+            {
+                char ch = chars[i];
+                if ('a' <= ch && 'z' >= ch)
+                {
+                    changed = true;
+                    chars[i] = (char)(ch - 'a' + 'A');
+                }
+            }
+
+            if (changed)
+            {
+                return new String(chars);
+            }
+
+            return original;
+        }
+
+
         internal static bool IsOneOf(string s, params string[] candidates)
         {
             foreach (string candidate in candidates)
@@ -52,7 +77,7 @@ namespace Org.BouncyCastle.Utilities
         public static string FromAsciiByteArray(
             byte[] bytes)
         {
-#if SILVERLIGHT
+#if SILVERLIGHT || PORTABLE
             // TODO Check for non-ASCII bytes in input?
             return Encoding.UTF8.GetString(bytes, 0, bytes.Length);
 #else
@@ -63,7 +88,7 @@ namespace Org.BouncyCastle.Utilities
         public static byte[] ToAsciiByteArray(
             char[] cs)
         {
-#if SILVERLIGHT
+#if SILVERLIGHT || PORTABLE
             // TODO Check for non-ASCII characters in input?
             return Encoding.UTF8.GetBytes(cs);
 #else
@@ -74,7 +99,7 @@ namespace Org.BouncyCastle.Utilities
         public static byte[] ToAsciiByteArray(
             string s)
         {
-#if SILVERLIGHT
+#if SILVERLIGHT || PORTABLE
             // TODO Check for non-ASCII characters in input?
             return Encoding.UTF8.GetBytes(s);
 #else

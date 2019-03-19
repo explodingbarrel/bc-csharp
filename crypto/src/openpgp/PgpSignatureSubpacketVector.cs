@@ -74,7 +74,7 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
             return result;
         }
 
-        public NotationData[] GetNotationDataOccurences()
+        public NotationData[] GetNotationDataOccurrences()
 		{
 			SignatureSubpacket[] notations = GetSubpackets(SignatureSubpacketTag.NotationData);
 			NotationData[] vals = new NotationData[notations.Length];
@@ -86,6 +86,12 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
 
 			return vals;
 		}
+
+        [Obsolete("Use 'GetNotationDataOccurrences' instead")]
+        public NotationData[] GetNotationDataOccurences()
+        {
+            return GetNotationDataOccurrences();
+        }
 
 		public long GetIssuerKeyId()
         {
@@ -209,7 +215,17 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
 			return list;
         }
 
-		[Obsolete("Use 'Count' property instead")]
+        public Features GetFeatures()
+        {
+            SignatureSubpacket p = this.GetSubpacket(SignatureSubpacketTag.Features);
+
+            if (p == null)
+                return null;
+
+            return new Features(p.IsCritical(), p.IsLongLength(), p.GetData());
+        }
+
+        [Obsolete("Use 'Count' property instead")]
 		public int Size
 		{
 			get { return packets.Length; }

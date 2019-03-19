@@ -213,7 +213,7 @@ namespace Org.BouncyCastle.Pkcs
 
                 byte[] data = ((Asn1OctetString) info.Content).GetOctets();
 
-                byte[] mac = CalculatePbeMac(algId.ObjectID, salt, itCount, password, false, data);
+                byte[] mac = CalculatePbeMac(algId.Algorithm, salt, itCount, password, false, data);
                 byte[] dig = dInfo.GetDigest();
 
                 if (!Arrays.ConstantTimeAreEqual(mac, dig))
@@ -222,7 +222,7 @@ namespace Org.BouncyCastle.Pkcs
                         throw new IOException("PKCS12 key store MAC invalid - wrong password or corrupted file.");
 
                     // Try with incorrect zero length password
-                    mac = CalculatePbeMac(algId.ObjectID, salt, itCount, password, true, data);
+                    mac = CalculatePbeMac(algId.Algorithm, salt, itCount, password, true, data);
 
                     if (!Arrays.ConstantTimeAreEqual(mac, dig))
                         throw new IOException("PKCS12 key store MAC invalid - wrong password or corrupted file.");
@@ -366,6 +366,10 @@ namespace Org.BouncyCastle.Pkcs
 
                         keyCerts[name] = certEntry;
                         keys[name] = unmarkedKeyEntry;
+                    }
+                    else
+                    {
+                        keys["unmarked"] = unmarkedKeyEntry;
                     }
                 }
                 else
@@ -1015,14 +1019,14 @@ namespace Org.BouncyCastle.Pkcs
             bool				wrongPkcs12Zero,
             byte[]				data)
         {
-            IBufferedCipher cipher = PbeUtilities.CreateEngine(algId.ObjectID) as IBufferedCipher;
+            IBufferedCipher cipher = PbeUtilities.CreateEngine(algId.Algorithm) as IBufferedCipher;
 
             if (cipher == null)
-                throw new Exception("Unknown encryption algorithm: " + algId.ObjectID);
+                throw new Exception("Unknown encryption algorithm: " + algId.Algorithm);
 
             Pkcs12PbeParams pbeParameters = Pkcs12PbeParams.GetInstance(algId.Parameters);
             ICipherParameters cipherParams = PbeUtilities.GenerateCipherParameters(
-                algId.ObjectID, password, wrongPkcs12Zero, pbeParameters);
+                algId.Algorithm, password, wrongPkcs12Zero, pbeParameters);
             cipher.Init(forEncryption, cipherParams);
             return cipher.DoFinal(data);
         }
@@ -1052,13 +1056,13 @@ namespace Org.BouncyCastle.Pkcs
             public object Remove(
                 string alias)
             {
-                string lower = Platform.ToLowerInvariant(alias);
-                string k = (string) keys[lower];
+                string upper = Platform.ToUpperInvariant(alias);
+                string k = (string)keys[upper];
 
                 if (k == null)
                     return null;
 
-                keys.Remove(lower);
+                keys.Remove(upper);
 
                 object o = orig[k];
                 orig.Remove(k);
@@ -1070,8 +1074,8 @@ namespace Org.BouncyCastle.Pkcs
             {
                 get
                 {
-                    string lower = Platform.ToLowerInvariant(alias);
-                    string k = (string)keys[lower];
+                    string upper = Platform.ToUpperInvariant(alias);
+                    string k = (string)keys[upper];
 
                     if (k == null)
                         return null;
@@ -1080,13 +1084,13 @@ namespace Org.BouncyCastle.Pkcs
                 }
                 set
                 {
-                    string lower = Platform.ToLowerInvariant(alias);
-                    string k = (string)keys[lower];
+                    string upper = Platform.ToUpperInvariant(alias);
+                    string k = (string)keys[upper];
                     if (k != null)
                     {
                         orig.Remove(k);
                     }
-                    keys[lower] = alias;
+                    keys[upper] = alias;
                     orig[alias] = value;
                 }
             }

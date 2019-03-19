@@ -27,7 +27,7 @@ namespace Org.BouncyCastle.Crypto.Parameters
             if (q == null)
                 throw new ArgumentNullException("q");
 
-            this.q = q.Normalize();
+            this.q = ECDomainParameters.Validate(Parameters.Curve, q);
         }
 
         public ECPublicKeyParameters(
@@ -39,7 +39,7 @@ namespace Org.BouncyCastle.Crypto.Parameters
             if (q == null)
                 throw new ArgumentNullException("q");
 
-            this.q = q.Normalize();
+            this.q = ECDomainParameters.Validate(Parameters.Curve, q);
         }
 
         public ECPublicKeyParameters(
@@ -51,7 +51,7 @@ namespace Org.BouncyCastle.Crypto.Parameters
             if (q == null)
                 throw new ArgumentNullException("q");
 
-            this.q = q.Normalize();
+            this.q = ECDomainParameters.Validate(Parameters.Curve, q);
         }
 
         public ECPoint Q

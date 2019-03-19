@@ -1,5 +1,7 @@
 using System;
 
+using Org.BouncyCastle.Utilities;
+
 namespace Org.BouncyCastle.Asn1.X500
 {
 	public class DirectoryString
@@ -7,15 +9,12 @@ namespace Org.BouncyCastle.Asn1.X500
 	{
 		private readonly DerStringBase str;
 
-		public static DirectoryString GetInstance(
-			object obj)
+		public static DirectoryString GetInstance(object obj)
 		{
-			if (obj is DirectoryString)
-			{
+			if (obj == null || obj is DirectoryString)
 				return (DirectoryString) obj;
-			}
 
-			if (obj is DerStringBase)
+            if (obj is DerStringBase)
 			{
 				if (obj is DerT61String
 					|| obj is DerPrintableString
@@ -27,7 +26,7 @@ namespace Org.BouncyCastle.Asn1.X500
 				}
 			}
 
-			throw new ArgumentException("unknown object in factory: " + obj.GetType().Name, "obj");
+            throw new ArgumentException("unknown object in factory: " + Platform.GetTypeName(obj), "obj");
 		}
 
 		public static DirectoryString GetInstance(

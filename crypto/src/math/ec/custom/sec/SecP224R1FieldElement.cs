@@ -1,11 +1,12 @@
 ﻿using System;
 
+using Org.BouncyCastle.Math.Raw;
 using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Math.EC.Custom.Sec
 {
     internal class SecP224R1FieldElement
-        : ECFieldElement
+        : AbstractFpFieldElement
     {
         public static readonly BigInteger Q = SecP224R1Curve.q;
 

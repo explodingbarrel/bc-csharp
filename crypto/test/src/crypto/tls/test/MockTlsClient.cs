@@ -45,27 +45,27 @@ namespace Org.BouncyCastle.Crypto.Tls.Tests
                 + ", " + AlertDescription.GetText(alertDescription));
         }
 
-        public override int[] GetCipherSuites()
-        {
-            return Arrays.Concatenate(base.GetCipherSuites(),
-                new int[]
-                {
-                    CipherSuite.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
-                    CipherSuite.TLS_ECDHE_RSA_WITH_ESTREAM_SALSA20_SHA1,
-                    CipherSuite.TLS_ECDHE_RSA_WITH_SALSA20_SHA1,
-                    CipherSuite.TLS_RSA_WITH_ESTREAM_SALSA20_SHA1,
-                    CipherSuite.TLS_RSA_WITH_SALSA20_SHA1,
-                });
-        }
+        //public override int[] GetCipherSuites()
+        //{
+        //    return Arrays.Concatenate(base.GetCipherSuites(),
+        //        new int[]
+        //        {
+        //            CipherSuite.DRAFT_TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+        //        });
+        //}
 
         public override IDictionary GetClientExtensions()
         {
             IDictionary clientExtensions = TlsExtensionsUtilities.EnsureExtensionsInitialised(base.GetClientExtensions());
             TlsExtensionsUtilities.AddEncryptThenMacExtension(clientExtensions);
-            // TODO[draft-ietf-tls-session-hash-01] Enable once code-point assigned (only for compatible server though)
-//            TlsExtensionsUtilities.AddExtendedMasterSecretExtension(clientExtensions);
-            TlsExtensionsUtilities.AddMaxFragmentLengthExtension(clientExtensions, MaxFragmentLength.pow2_9);
-            TlsExtensionsUtilities.AddTruncatedHMacExtension(clientExtensions);
+            {
+                /*
+                 * NOTE: If you are copying test code, do not blindly set these extensions in your own client.
+                 */
+                TlsExtensionsUtilities.AddMaxFragmentLengthExtension(clientExtensions, MaxFragmentLength.pow2_9);
+                TlsExtensionsUtilities.AddPaddingExtension(clientExtensions, mContext.SecureRandom.Next(16));
+                TlsExtensionsUtilities.AddTruncatedHMacExtension(clientExtensions);
+            }
             return clientExtensions;
         }
 
@@ -121,8 +121,8 @@ namespace Org.BouncyCastle.Crypto.Tls.Tests
                 for (int i = 0; i != chain.Length; i++)
                 {
                     X509CertificateStructure entry = chain[i];
-                    // TODO Create Fingerprint based on certificate signature algorithm digest
-                    Console.WriteLine("    Fingerprint:SHA-256 " + TlsTestUtilities.Fingerprint(entry) + " ("
+                    // TODO Create fingerprint based on certificate signature algorithm digest
+                    Console.WriteLine("    fingerprint:SHA-256 " + TlsTestUtilities.Fingerprint(entry) + " ("
                         + entry.Subject + ")");
                 }
             }
@@ -133,27 +133,8 @@ namespace Org.BouncyCastle.Crypto.Tls.Tests
                 if (certificateTypes == null || !Arrays.Contains(certificateTypes, ClientCertificateType.rsa_sign))
                     return null;
 
-                SignatureAndHashAlgorithm signatureAndHashAlgorithm = null;
-                IList sigAlgs = certificateRequest.SupportedSignatureAlgorithms;
-                if (sigAlgs != null)
-                {
-                    foreach (SignatureAndHashAlgorithm sigAlg in sigAlgs)
-                    {
-                        if (sigAlg.Signature == SignatureAlgorithm.rsa)
-                        {
-                            signatureAndHashAlgorithm = sigAlg;
-                            break;
-                        }
-                    }
-
-                    if (signatureAndHashAlgorithm == null)
-                    {
-                        return null;
-                    }
-                }
-
-                return TlsTestUtilities.LoadSignerCredentials(mContext, new string[] { "x509-client.pem", "x509-ca.pem" },
-                    "x509-client-key.pem", signatureAndHashAlgorithm);
+                return TlsTestUtilities.LoadSignerCredentials(mContext, certificateRequest.SupportedSignatureAlgorithms,
+                    SignatureAlgorithm.rsa, "x509-client.pem", "x509-client-key.pem");
             }
         };
     }

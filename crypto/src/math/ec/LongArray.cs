@@ -13,7 +13,7 @@ namespace Org.BouncyCastle.Math.EC
          * This expands 8 bit indices into 16 bit contents (high bit 14), by inserting 0s between bits.
          * In a binary field, this operation is the same as squaring an 8 bit number.
          */
-        private static readonly int[] INTERLEAVE2_TABLE = new int[]
+        private static readonly ushort[] INTERLEAVE2_TABLE = new ushort[]
         {
             0x0000, 0x0001, 0x0004, 0x0005, 0x0010, 0x0011, 0x0014, 0x0015,
             0x0040, 0x0041, 0x0044, 0x0045, 0x0050, 0x0051, 0x0054, 0x0055,
@@ -370,6 +370,11 @@ namespace Org.BouncyCastle.Math.EC
                 }
                 m_ints[iarrJ] = temp;
             }
+        }
+
+        internal void CopyTo(long[] z, int zOff)
+        {
+            Array.Copy(m_ints, 0, z, zOff, m_ints.Length);
         }
 
         public bool IsOne()

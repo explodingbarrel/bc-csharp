@@ -86,7 +86,13 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
 				case PublicKeyAlgorithmTag.Dsa:
 					encAlg = "DSA";
 					break;
-				case PublicKeyAlgorithmTag.ElGamalEncrypt: // in some malformed cases.
+                case PublicKeyAlgorithmTag.ECDH:
+                    encAlg = "ECDH";
+                    break;
+                case PublicKeyAlgorithmTag.ECDsa:
+                    encAlg = "ECDSA";
+                    break;
+                case PublicKeyAlgorithmTag.ElGamalEncrypt: // in some malformed cases.
 				case PublicKeyAlgorithmTag.ElGamalGeneral:
 					encAlg = "ElGamal";
 					break;
@@ -135,7 +141,7 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
             }
         }
 
-	public static int GetKeySize(SymmetricKeyAlgorithmTag algorithm)
+        public static int GetKeySize(SymmetricKeyAlgorithmTag algorithm)
         {
             int keySize;
             switch (algorithm)
@@ -187,13 +193,44 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
 			return MakeKey(algorithm, keyBytes);
         }
 
-		public static KeyParameter MakeKeyFromPassPhrase(
-            SymmetricKeyAlgorithmTag	algorithm,
-            S2k							s2k,
-            char[]						passPhrase)
+        internal static byte[] EncodePassPhrase(char[] passPhrase, bool utf8)
+        {
+            return passPhrase == null
+                ? null
+                : utf8
+                ? Encoding.UTF8.GetBytes(passPhrase)
+                : Strings.ToByteArray(passPhrase);
+        }
+
+        /// <remarks>
+        /// Conversion of the passphrase characters to bytes is performed using Convert.ToByte(), which is
+        /// the historical behaviour of the library (1.7 and earlier).
+        /// </remarks>
+        public static KeyParameter MakeKeyFromPassPhrase(SymmetricKeyAlgorithmTag algorithm, S2k s2k, char[] passPhrase)
+        {
+            return DoMakeKeyFromPassPhrase(algorithm, s2k, EncodePassPhrase(passPhrase, false), true);
+        }
+
+        /// <remarks>
+        /// The passphrase is encoded to bytes using UTF8 (Encoding.UTF8.GetBytes).
+        /// </remarks>
+        public static KeyParameter MakeKeyFromPassPhraseUtf8(SymmetricKeyAlgorithmTag algorithm, S2k s2k, char[] passPhrase)
+        {
+            return DoMakeKeyFromPassPhrase(algorithm, s2k, EncodePassPhrase(passPhrase, true), true);
+        }
+
+        /// <remarks>
+        /// Allows the caller to handle the encoding of the passphrase to bytes.
+        /// </remarks>
+        public static KeyParameter MakeKeyFromPassPhraseRaw(SymmetricKeyAlgorithmTag algorithm, S2k s2k, byte[] rawPassPhrase)
+        {
+            return DoMakeKeyFromPassPhrase(algorithm, s2k, rawPassPhrase, false);
+        }
+
+        internal static KeyParameter DoMakeKeyFromPassPhrase(SymmetricKeyAlgorithmTag algorithm, S2k s2k, byte[] rawPassPhrase, bool clearPassPhrase)
         {
 			int keySize = GetKeySize(algorithm);
-			byte[] pBytes = Strings.ToByteArray(new string(passPhrase));
+            byte[] pBytes = rawPassPhrase;
 			byte[] keyBytes = new byte[(keySize + 7) / 8];
 
 			int generatedBytes = 0;
@@ -302,12 +339,16 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
 				loopCount++;
             }
 
-			Array.Clear(pBytes, 0, pBytes.Length);
+            if (clearPassPhrase && rawPassPhrase != null)
+            {
+                Array.Clear(rawPassPhrase, 0, rawPassPhrase.Length);
+            }
 
-			return MakeKey(algorithm, keyBytes);
+            return MakeKey(algorithm, keyBytes);
         }
 
-		/// <summary>Write out the passed in file as a literal data packet.</summary>
+#if !PORTABLE || DOTNET
+        /// <summary>Write out the passed in file as a literal data packet.</summary>
         public static void WriteFileToLiteralData(
             Stream		output,
             char		fileType,
@@ -315,7 +356,7 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
         {
             PgpLiteralDataGenerator lData = new PgpLiteralDataGenerator();
 			Stream pOut = lData.Open(output, fileType, file.Name, file.Length, file.LastWriteTime);
-			PipeFileContents(file, pOut, 4096);
+			PipeFileContents(file, pOut, 32768);
         }
 
 		/// <summary>Write out the passed in file as a literal data packet in partial packet format.</summary>
@@ -335,15 +376,23 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
 			FileStream inputStream = file.OpenRead();
 			byte[] buf = new byte[bufSize];
 
-			int len;
-            while ((len = inputStream.Read(buf, 0, buf.Length)) > 0)
+            try
             {
-                pOut.Write(buf, 0, len);
+			    int len;
+                while ((len = inputStream.Read(buf, 0, buf.Length)) > 0)
+                {
+                    pOut.Write(buf, 0, len);
+                }
             }
+            finally
+            {
+                Array.Clear(buf, 0, buf.Length);
 
-			pOut.Close();
-			inputStream.Close();
-		}
+                Platform.Dispose(pOut);
+                Platform.Dispose(inputStream);
+            }
+        }
+#endif
 
 		private const int ReadAhead = 60;
 
@@ -375,7 +424,20 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
 
 				return inputStream;
             }
-            else
+
+            if (!IsPossiblyBase64(ch))
+            {
+                inputStream.Position = markedPos;
+
+				return new ArmoredInputStream(inputStream);
+            }
+
+			byte[]	buf = new byte[ReadAhead];
+            int		count = 1;
+            int		index = 1;
+
+			buf[0] = (byte)ch;
+            while (count != ReadAhead && (ch = inputStream.ReadByte()) >= 0)
             {
                 if (!IsPossiblyBase64(ch))
                 {
@@ -384,52 +446,80 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
 					return new ArmoredInputStream(inputStream);
                 }
 
-				byte[]	buf = new byte[ReadAhead];
-                int		count = 1;
-                int		index = 1;
-
-				buf[0] = (byte)ch;
-                while (count != ReadAhead && (ch = inputStream.ReadByte()) >= 0)
+				if (ch != '\n' && ch != '\r')
                 {
-                    if (!IsPossiblyBase64(ch))
-                    {
-                        inputStream.Position = markedPos;
-
-						return new ArmoredInputStream(inputStream);
-                    }
-
-					if (ch != '\n' && ch != '\r')
-                    {
-                        buf[index++] = (byte)ch;
-                    }
-
-					count++;
+                    buf[index++] = (byte)ch;
                 }
 
-				inputStream.Position = markedPos;
+				count++;
+            }
 
-				//
-                // nothing but new lines, little else, assume regular armoring
+			inputStream.Position = markedPos;
+
+			//
+            // nothing but new lines, little else, assume regular armoring
+            //
+            if (count < 4)
+            {
+                return new ArmoredInputStream(inputStream);
+            }
+
+			//
+            // test our non-blank data
+            //
+            byte[] firstBlock = new byte[8];
+
+			Array.Copy(buf, 0, firstBlock, 0, firstBlock.Length);
+
+            try
+            {
+                byte[] decoded = Base64.Decode(firstBlock);
+
                 //
-                if (count < 4)
-                {
-                    return new ArmoredInputStream(inputStream);
-                }
-
-				//
-                // test our non-blank data
-                //
-                byte[] firstBlock = new byte[8];
-				Array.Copy(buf, 0, firstBlock, 0, firstBlock.Length);
-				byte[] decoded = Base64.Decode(firstBlock);
-
-				//
                 // it's a base64 PGP block.
                 //
-				bool hasHeaders = (decoded[0] & 0x80) == 0;
+                bool hasHeaders = (decoded[0] & 0x80) == 0;
 
-				return new ArmoredInputStream(inputStream, hasHeaders);
+                return new ArmoredInputStream(inputStream, hasHeaders);
             }
+            catch (IOException e)
+            {
+                throw e;
+            }
+            catch (Exception e)
+            {
+                throw new IOException(e.Message);
+            }
+        }
+
+        internal static IWrapper CreateWrapper(SymmetricKeyAlgorithmTag encAlgorithm)
+        {
+            switch (encAlgorithm)
+            {
+            case SymmetricKeyAlgorithmTag.Aes128:
+            case SymmetricKeyAlgorithmTag.Aes192:
+            case SymmetricKeyAlgorithmTag.Aes256:
+                return WrapperUtilities.GetWrapper("AESWRAP");
+            case SymmetricKeyAlgorithmTag.Camellia128:
+            case SymmetricKeyAlgorithmTag.Camellia192:
+            case SymmetricKeyAlgorithmTag.Camellia256:
+                return WrapperUtilities.GetWrapper("CAMELLIAWRAP");
+            default:
+                throw new PgpException("unknown wrap algorithm: " + encAlgorithm);
+            }
+        }
+
+        internal static byte[] GenerateIV(int length, SecureRandom random)
+        {
+            byte[] iv = new byte[length];
+            random.NextBytes(iv);
+            return iv;
+        }
+
+        internal static S2k GenerateS2k(HashAlgorithmTag hashAlgorithm, int s2kCount, SecureRandom random)
+        {
+            byte[] iv = GenerateIV(8, random);
+            return new S2k(hashAlgorithm, iv, s2kCount);
         }
     }
 }

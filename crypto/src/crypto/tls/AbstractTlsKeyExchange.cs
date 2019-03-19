@@ -10,7 +10,7 @@ namespace Org.BouncyCastle.Crypto.Tls
         protected readonly int mKeyExchange;
         protected IList mSupportedSignatureAlgorithms;
 
-        protected TlsContext context;
+        protected TlsContext mContext;
 
         protected AbstractTlsKeyExchange(int keyExchange, IList supportedSignatureAlgorithms)
         {
@@ -18,16 +18,27 @@ namespace Org.BouncyCastle.Crypto.Tls
             this.mSupportedSignatureAlgorithms = supportedSignatureAlgorithms;
         }
 
+        protected virtual DigitallySigned ParseSignature(Stream input)
+        {
+            DigitallySigned signature = DigitallySigned.Parse(mContext, input);
+            SignatureAndHashAlgorithm signatureAlgorithm = signature.Algorithm;
+            if (signatureAlgorithm != null)
+            {
+                TlsUtilities.VerifySupportedSignatureAlgorithm(mSupportedSignatureAlgorithms, signatureAlgorithm);
+            }
+            return signature;
+        }
+
         public virtual void Init(TlsContext context)
         {
-            this.context = context;
+            this.mContext = context;
 
             ProtocolVersion clientVersion = context.ClientVersion;
 
             if (TlsUtilities.IsSignatureAlgorithmsExtensionAllowed(clientVersion))
             {
                 /*
-                 * RFC 5264 7.4.1.4.1. If the client does not send the signature_algorithms extension,
+                 * RFC 5246 7.4.1.4.1. If the client does not send the signature_algorithms extension,
                  * the server MUST do the following:
                  * 
                  * - If the negotiated key exchange algorithm is one of (RSA, DHE_RSA, DH_RSA, RSA_PSK,
@@ -95,14 +106,14 @@ namespace Org.BouncyCastle.Crypto.Tls
             if (mSupportedSignatureAlgorithms == null)
             {
                 /*
-                 * TODO RFC 2264 7.4.2. Unless otherwise specified, the signing algorithm for the
+                 * TODO RFC 2246 7.4.2. Unless otherwise specified, the signing algorithm for the
                  * certificate must be the same as the algorithm for the certificate key.
                  */
             }
             else
             {
                 /*
-                 * TODO RFC 5264 7.4.2. If the client provided a "signature_algorithms" extension, then
+                 * TODO RFC 5246 7.4.2. If the client provided a "signature_algorithms" extension, then
                  * all certificates provided by the server MUST be signed by a hash/signature algorithm
                  * pair that appears in that extension.
                  */

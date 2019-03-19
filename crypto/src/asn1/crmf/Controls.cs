@@ -1,4 +1,7 @@
-using System;
+﻿using System;
+using System.Text;
+
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.Crmf
 {
@@ -20,10 +23,10 @@ namespace Org.BouncyCastle.Asn1.Crmf
             if (obj is Asn1Sequence)
                 return new Controls((Asn1Sequence)obj);
 
-            throw new ArgumentException("Invalid object: " + obj.GetType().Name, "obj");
+            throw new ArgumentException("Invalid object: " + Platform.GetTypeName(obj), "obj");
         }
 
-		public Controls(params AttributeTypeAndValue[] atvs)
+        public Controls(params AttributeTypeAndValue[] atvs)
         {
             content = new DerSequence(atvs);
         }

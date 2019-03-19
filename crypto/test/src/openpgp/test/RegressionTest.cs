@@ -19,7 +19,11 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
             new PgpSignatureTest(),
             new PgpClearSignedSignatureTest(),
             new PgpCompressionTest(),
-            new PGPNoPrivateKeyTest(),
+            new PgpNoPrivateKeyTest(),
+            new PgpECDHTest(),
+            new PgpECDsaTest(),
+            new PgpECMessageTest(),
+            new PgpParsingTest(),
         };
 
         public static void Main(

@@ -2,6 +2,7 @@ using System;
 
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Crypto.Macs
 {
@@ -17,6 +18,7 @@ namespace Org.BouncyCastle.Crypto.Macs
 		private byte[]				mac;
 		private bool				firstStep = true;
 		private int[]				workingKey;
+        private byte[]              macIV = null;
 
 		//
 		// This is default S-box - E_A.
@@ -39,7 +41,7 @@ namespace Org.BouncyCastle.Crypto.Macs
 			bufOff = 0;
 		}
 
-		private static int[] generateWorkingKey(
+		private static int[] GenerateWorkingKey(
 			byte[] userKey)
 		{
 			if (userKey.Length != 32)
@@ -59,7 +61,8 @@ namespace Org.BouncyCastle.Crypto.Macs
 		{
 			Reset();
 			buf = new byte[blockSize];
-			if (parameters is ParametersWithSBox)
+            macIV = null;
+            if (parameters is ParametersWithSBox)
 			{
 				ParametersWithSBox param = (ParametersWithSBox)parameters;
 
@@ -73,17 +76,25 @@ namespace Org.BouncyCastle.Crypto.Macs
 				//
 				if (param.Parameters != null)
 				{
-					workingKey = generateWorkingKey(((KeyParameter)param.Parameters).GetKey());
+					workingKey = GenerateWorkingKey(((KeyParameter)param.Parameters).GetKey());
 				}
 			}
 			else if (parameters is KeyParameter)
 			{
-				workingKey = generateWorkingKey(((KeyParameter)parameters).GetKey());
+				workingKey = GenerateWorkingKey(((KeyParameter)parameters).GetKey());
 			}
+            else if (parameters is ParametersWithIV)
+            {
+                ParametersWithIV p = (ParametersWithIV)parameters;
+
+                workingKey = GenerateWorkingKey(((KeyParameter)p.Parameters).GetKey());
+                Array.Copy(p.GetIV(), 0, mac, 0, mac.Length);
+                macIV = p.GetIV(); // don't skip the initial CM5Func
+            }
 			else
 			{
 				throw new ArgumentException("invalid parameter passed to Gost28147 init - "
-					+ parameters.GetType().Name);
+                    + Platform.GetTypeName(parameters));
 			}
 		}
 
@@ -193,7 +204,11 @@ namespace Org.BouncyCastle.Crypto.Macs
 				if (firstStep)
 				{
 					firstStep = false;
-				}
+                    if (macIV != null)
+                    {
+                        sumbuf = CM5func(buf, 0, macIV);
+                    }
+                }
 				else
 				{
 					sumbuf = CM5func(buf, 0, mac);
@@ -226,7 +241,11 @@ namespace Org.BouncyCastle.Crypto.Macs
 				if (firstStep)
 				{
 					firstStep = false;
-				}
+                    if (macIV != null)
+                    {
+                        sumbuf = CM5func(buf, 0, macIV);
+                    }
+                }
 				else
 				{
 					sumbuf = CM5func(buf, 0, mac);

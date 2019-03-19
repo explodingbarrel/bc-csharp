@@ -1,12 +1,12 @@
 ﻿using System;
 
-using Org.BouncyCastle.Math.EC.Custom.Sec;
+using Org.BouncyCastle.Math.Raw;
 using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Math.EC.Custom.Djb
 {
     internal class Curve25519FieldElement
-        :   ECFieldElement
+        : AbstractFpFieldElement
     {
         public static readonly BigInteger Q = Curve25519.q;
 

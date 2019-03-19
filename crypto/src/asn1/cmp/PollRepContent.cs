@@ -1,5 +1,7 @@
 using System;
 
+using Org.BouncyCastle.Utilities;
+
 namespace Org.BouncyCastle.Asn1.Cmp
 {
 	public class PollRepContent
@@ -28,8 +30,27 @@ namespace Org.BouncyCastle.Asn1.Cmp
 			if (obj is Asn1Sequence)
 				return new PollRepContent((Asn1Sequence)obj);
 
-			throw new ArgumentException("Invalid object: " + obj.GetType().Name, "obj");
+            throw new ArgumentException("Invalid object: " + Platform.GetTypeName(obj), "obj");
 		}
+
+	    public PollRepContent(
+	        DerInteger certReqId,
+	        DerInteger checkAfter)
+	    {
+	        this.certReqId = certReqId;
+	        this.checkAfter = checkAfter;
+	        this.reason = null;
+	    }
+
+        public PollRepContent(
+	        DerInteger certReqId,
+	        DerInteger checkAfter,
+	        PkiFreeText reason)
+	    {
+	        this.certReqId = certReqId;
+	        this.checkAfter = checkAfter;
+	        this.reason = reason;
+	    }
 
 		public virtual DerInteger CertReqID
 		{

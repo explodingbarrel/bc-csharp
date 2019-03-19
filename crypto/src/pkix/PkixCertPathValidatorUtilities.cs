@@ -143,6 +143,20 @@ namespace Org.BouncyCastle.Pkix
 			return trust;
 		}
 
+        internal static bool IsIssuerTrustAnchor(
+            X509Certificate cert,
+            ISet trustAnchors)
+        {
+            try
+            {
+                return FindTrustAnchor(cert, trustAnchors) != null;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
 		internal static void AddAdditionalStoresFromAltNames(
 			X509Certificate	cert,
 			PkixParameters	pkixParams)
@@ -230,7 +244,7 @@ namespace Org.BouncyCastle.Pkix
 			{
 				try
 				{
-					if (location.StartsWith("ldap://"))
+					if (Platform.StartsWith(location, "ldap://"))
 					{
 						// ldap://directory.d-trust.net/CN=D-TRUST
 						// Qualified CA 2003 1:PN,O=D-Trust GmbH,C=DE

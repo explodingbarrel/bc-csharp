@@ -5,9 +5,10 @@ using NUnit.Framework;
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Pkcs;
 using Org.BouncyCastle.Asn1.X509;
-using Org.BouncyCastle.Crypto;
+using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Crypto.Encodings;
 using Org.BouncyCastle.Crypto.Engines;
+using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Security;
@@ -779,10 +780,123 @@ namespace Org.BouncyCastle.Crypto.Tests
             OaepVecTest(1027, 4, pubParam, privParam, seed_1027_4, input_1027_4, output_1027_4);
             OaepVecTest(1027, 5, pubParam, privParam, seed_1027_5, input_1027_5, output_1027_5);
             OaepVecTest(1027, 6, pubParam, privParam, seed_1027_6, input_1027_6, output_1027_6);
+
+            TestForHighByteError("invalidCiphertextOaepTest 1024", 1024);
+
+            //
+            // OAEP - public encrypt, private decrypt, differing hashes
+            //
+            IAsymmetricBlockCipher cipher = new OaepEncoding(new RsaEngine(), new Sha256Digest(), new Sha1Digest(), new byte[10]);
+
+            cipher.Init(true, new ParametersWithRandom(pubParam, new SecureRandom()));
+
+            byte[] input = new byte[10];
+
+            byte[] output = cipher.ProcessBlock(input, 0, input.Length);
+
+            cipher.Init(false, privParam);
+
+            output = cipher.ProcessBlock(output, 0, output.Length);
+
+            for (int i = 0; i != input.Length; i++)
+            {
+                if (output[i] != input[i])
+                {
+                    Fail("mixed digest failed decoding");
+                }
+            }
+
+            cipher = new OaepEncoding(new RsaEngine(), new Sha1Digest(), new Sha256Digest(), new byte[10]);
+
+            cipher.Init(true, new ParametersWithRandom(pubParam, new SecureRandom()));
+
+            output = cipher.ProcessBlock(input, 0, input.Length);
+
+            cipher.Init(false, privParam);
+
+            output = cipher.ProcessBlock(output, 0, output.Length);
+
+            for (int i = 0; i != input.Length; i++)
+            {
+                if (output[i] != input[i])
+                {
+                    Fail("mixed digest failed decoding");
+                }
+            }
         }
 
-        public static void Main(
-            string[] args)
+        private void TestForHighByteError(string label, int keySizeBits)
+        {
+            // draw a key of the size asked
+            BigInteger e = BigInteger.One.ShiftLeft(16).Add(BigInteger.One);
+
+            IAsymmetricCipherKeyPairGenerator kpGen = new RsaKeyPairGenerator();
+
+            kpGen.Init(new RsaKeyGenerationParameters(e, new SecureRandom(), keySizeBits, 100));
+
+            AsymmetricCipherKeyPair kp = kpGen.GenerateKeyPair();
+
+            IAsymmetricBlockCipher cipher = new OaepEncoding(new RsaEngine());
+
+            // obtain a known good ciphertext
+            cipher.Init(true, new ParametersWithRandom(kp.Public, new VecRand(seed)));
+            byte[] m = { 42 };
+            byte[] c = cipher.ProcessBlock(m, 0, m.Length);
+            int keySizeBytes = (keySizeBits + 7) / 8;
+            if (c.Length != keySizeBytes)
+            {
+                Fail(label + " failed ciphertext size");
+            }
+
+            BigInteger n = ((RsaPrivateCrtKeyParameters)kp.Private).Modulus;
+
+            // decipher
+            cipher.Init(false, kp.Private);
+            byte[] r = cipher.ProcessBlock(c, 0, keySizeBytes);
+            if (r.Length != 1 || r[0] != 42)
+            {
+                Fail(label + " failed first decryption of test message");
+            }
+
+            // decipher again
+            r = cipher.ProcessBlock(c, 0, keySizeBytes);
+            if (r.Length != 1 || r[0] != 42)
+            {
+                Fail(label + " failed second decryption of test message");
+            }
+
+            // check hapazard incorrect ciphertexts
+            for (int i = keySizeBytes * 8; --i >= 0; )
+            {
+                c[i / 8] ^= (byte)(1 << (i & 7));
+                bool ko = true;
+                try
+                {
+                    BigInteger cV = new BigInteger(1, c);
+
+                    // don't pass in c if it will be rejected trivially
+                    if (cV.CompareTo(n) < 0)
+                    {
+                        r = cipher.ProcessBlock(c, 0, keySizeBytes);
+                    }
+                    else
+                    {
+                        ko = false; // size errors are picked up at start
+                    }
+                }
+                catch (InvalidCipherTextException)
+                {
+                    ko = false;
+                }
+                if (ko)
+                {
+                    Fail(label + " invalid ciphertext caused no exception");
+                }
+                c[i / 8] ^= (byte)(1 << (i & 7));
+            }
+        }
+
+        public static void Main(string[] args)
         {
             RunTest(new OaepTest());
         }

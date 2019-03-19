@@ -23,6 +23,7 @@ namespace Org.BouncyCastle.Asn1.Sec
             return new ECPrivateKeyStructure(Asn1Sequence.GetInstance(obj));
         }
 
+        [Obsolete("Use 'GetInstance' instead")]
         public ECPrivateKeyStructure(
             Asn1Sequence seq)
         {
@@ -32,6 +33,7 @@ namespace Org.BouncyCastle.Asn1.Sec
             this.seq = seq;
         }
 
+        [Obsolete("Use constructor which takes 'orderBitLength' instead, to guarantee correct encoding")]
         public ECPrivateKeyStructure(
             BigInteger key)
         {
@@ -44,12 +46,21 @@ namespace Org.BouncyCastle.Asn1.Sec
         }
 
         public ECPrivateKeyStructure(
+            int         orderBitLength,
+            BigInteger  key)
+            : this(orderBitLength, key, null)
+        {
+        }
+
+        [Obsolete("Use constructor which takes 'orderBitLength' instead, to guarantee correct encoding")]
+        public ECPrivateKeyStructure(
             BigInteger		key,
             Asn1Encodable	parameters)
             : this(key, null, parameters)
         {
         }
 
+        [Obsolete("Use constructor which takes 'orderBitLength' instead, to guarantee correct encoding")]
         public ECPrivateKeyStructure(
             BigInteger		key,
             DerBitString	publicKey,
@@ -61,6 +72,44 @@ namespace Org.BouncyCastle.Asn1.Sec
             Asn1EncodableVector v = new Asn1EncodableVector(
                 new DerInteger(1),
                 new DerOctetString(key.ToByteArrayUnsigned()));
+
+            if (parameters != null)
+            {
+                v.Add(new DerTaggedObject(true, 0, parameters));
+            }
+
+            if (publicKey != null)
+            {
+                v.Add(new DerTaggedObject(true, 1, publicKey));
+            }
+
+            this.seq = new DerSequence(v);
+        }
+
+        public ECPrivateKeyStructure(
+            int             orderBitLength,
+            BigInteger      key,
+            Asn1Encodable   parameters)
+            : this(orderBitLength, key, null, parameters)
+        {
+        }
+
+        public ECPrivateKeyStructure(
+            int             orderBitLength,
+            BigInteger      key,
+            DerBitString    publicKey,
+            Asn1Encodable   parameters)
+        {
+            if (key == null)
+                throw new ArgumentNullException("key");
+            if (orderBitLength < key.BitLength)
+                throw new ArgumentException("must be >= key bitlength", "orderBitLength");
+
+            byte[] bytes = BigIntegers.AsUnsignedByteArray((orderBitLength + 7) / 8, key);
+
+            Asn1EncodableVector v = new Asn1EncodableVector(
+                new DerInteger(1),
+                new DerOctetString(bytes));
 
             if (parameters != null)
             {

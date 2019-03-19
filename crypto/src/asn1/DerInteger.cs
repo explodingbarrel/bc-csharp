@@ -8,6 +8,14 @@ namespace Org.BouncyCastle.Asn1
     public class DerInteger
         : Asn1Object
     {
+        public const string AllowUnsafeProperty = "Org.BouncyCastle.Asn1.AllowUnsafeInteger";
+
+        internal static bool AllowUnsafe()
+        {
+            string allowUnsafeValue = Platform.GetEnvironmentVariable(AllowUnsafeProperty);
+            return allowUnsafeValue != null && Platform.EqualsIgnoreCase("true", allowUnsafeValue);
+        }
+
         private readonly byte[] bytes;
 
         /**
@@ -23,7 +31,7 @@ namespace Org.BouncyCastle.Asn1
                 return (DerInteger)obj;
             }
 
-			throw new ArgumentException("illegal object in GetInstance: " + obj.GetType().Name);
+            throw new ArgumentException("illegal object in GetInstance: " + Platform.GetTypeName(obj));
         }
 
         /**
@@ -70,7 +78,16 @@ namespace Org.BouncyCastle.Asn1
 		public DerInteger(
             byte[] bytes)
         {
-            this.bytes = bytes;
+            if (bytes.Length > 1)
+            {
+                if ((bytes[0] == 0 && (bytes[1] & 0x80) == 0)
+                    || (bytes[0] == (byte)0xff && (bytes[1] & 0x80) != 0))
+                {
+                    if (!AllowUnsafe())
+                        throw new ArgumentException("malformed integer");
+                }
+            }
+            this.bytes = Arrays.Clone(bytes);
         }
 
 		public BigInteger Value

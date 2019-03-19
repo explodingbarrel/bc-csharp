@@ -7,118 +7,133 @@ using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Crypto.Engines
 {
-	/**
-	 * this does your basic RSA algorithm with blinding
-	 */
-	public class RsaBlindedEngine
-		: IAsymmetricBlockCipher
-	{
-		private readonly RsaCoreEngine core = new RsaCoreEngine();
-		private RsaKeyParameters key;
-		private SecureRandom random;
+    /**
+     * this does your basic RSA algorithm with blinding
+     */
+    public class RsaBlindedEngine
+        : IAsymmetricBlockCipher
+    {
+        private readonly IRsa core;
 
-		public string AlgorithmName
-		{
-			get { return "RSA"; }
-		}
+        private RsaKeyParameters key;
+        private SecureRandom random;
 
-		/**
-		 * initialise the RSA engine.
-		 *
-		 * @param forEncryption true if we are encrypting, false otherwise.
-		 * @param param the necessary RSA key parameters.
-		 */
-		public void Init(
-			bool				forEncryption,
-			ICipherParameters	param)
-		{
-			core.Init(forEncryption, param);
+        public RsaBlindedEngine()
+            : this(new RsaCoreEngine())
+        {
+        }
 
-			if (param is ParametersWithRandom)
-			{
-				ParametersWithRandom rParam = (ParametersWithRandom)param;
+        public RsaBlindedEngine(IRsa rsa)
+        {
+            this.core = rsa;
+        }
 
-				key = (RsaKeyParameters)rParam.Parameters;
-				random = rParam.Random;
-			}
-			else
-			{
-				key = (RsaKeyParameters)param;
-				random = new SecureRandom();
-			}
-		}
+        public virtual string AlgorithmName
+        {
+            get { return "RSA"; }
+        }
 
-		/**
-		 * Return the maximum size for an input block to this engine.
-		 * For RSA this is always one byte less than the key size on
-		 * encryption, and the same length as the key size on decryption.
-		 *
-		 * @return maximum size for an input block.
-		 */
-		public int GetInputBlockSize()
-		{
-			return core.GetInputBlockSize();
-		}
+        /**
+         * initialise the RSA engine.
+         *
+         * @param forEncryption true if we are encrypting, false otherwise.
+         * @param param the necessary RSA key parameters.
+         */
+        public virtual void Init(
+            bool forEncryption,
+            ICipherParameters param)
+        {
+            core.Init(forEncryption, param);
 
-		/**
-		 * Return the maximum size for an output block to this engine.
-		 * For RSA this is always one byte less than the key size on
-		 * decryption, and the same length as the key size on encryption.
-		 *
-		 * @return maximum size for an output block.
-		 */
-		public int GetOutputBlockSize()
-		{
-			return core.GetOutputBlockSize();
-		}
+            if (param is ParametersWithRandom)
+            {
+                ParametersWithRandom rParam = (ParametersWithRandom)param;
 
-		/**
-		 * Process a single block using the basic RSA algorithm.
-		 *
-		 * @param inBuf the input array.
-		 * @param inOff the offset into the input buffer where the data starts.
-		 * @param inLen the length of the data to be processed.
-		 * @return the result of the RSA process.
-		 * @exception DataLengthException the input block is too large.
-		 */
-		public byte[] ProcessBlock(
-			byte[]	inBuf,
-			int		inOff,
-			int		inLen)
-		{
-			if (key == null)
-				throw new InvalidOperationException("RSA engine not initialised");
+                key = (RsaKeyParameters)rParam.Parameters;
+                random = rParam.Random;
+            }
+            else
+            {
+                key = (RsaKeyParameters)param;
+                random = new SecureRandom();
+            }
+        }
 
-			BigInteger input = core.ConvertInput(inBuf, inOff, inLen);
+        /**
+         * Return the maximum size for an input block to this engine.
+         * For RSA this is always one byte less than the key size on
+         * encryption, and the same length as the key size on decryption.
+         *
+         * @return maximum size for an input block.
+         */
+        public virtual int GetInputBlockSize()
+        {
+            return core.GetInputBlockSize();
+        }
 
-			BigInteger result;
-			if (key is RsaPrivateCrtKeyParameters)
-			{
-				RsaPrivateCrtKeyParameters k = (RsaPrivateCrtKeyParameters)key;
-				BigInteger e = k.PublicExponent;
-				if (e != null)   // can't do blinding without a public exponent
-				{
-					BigInteger m = k.Modulus;
-					BigInteger r = BigIntegers.CreateRandomInRange(
-						BigInteger.One, m.Subtract(BigInteger.One), random);
+        /**
+         * Return the maximum size for an output block to this engine.
+         * For RSA this is always one byte less than the key size on
+         * decryption, and the same length as the key size on encryption.
+         *
+         * @return maximum size for an output block.
+         */
+        public virtual int GetOutputBlockSize()
+        {
+            return core.GetOutputBlockSize();
+        }
 
-					BigInteger blindedInput = r.ModPow(e, m).Multiply(input).Mod(m);
-					BigInteger blindedResult = core.ProcessBlock(blindedInput);
+        /**
+         * Process a single block using the basic RSA algorithm.
+         *
+         * @param inBuf the input array.
+         * @param inOff the offset into the input buffer where the data starts.
+         * @param inLen the length of the data to be processed.
+         * @return the result of the RSA process.
+         * @exception DataLengthException the input block is too large.
+         */
+        public virtual byte[] ProcessBlock(
+            byte[] inBuf,
+            int inOff,
+            int inLen)
+        {
+            if (key == null)
+                throw new InvalidOperationException("RSA engine not initialised");
 
-					BigInteger rInv = r.ModInverse(m);
-					result = blindedResult.Multiply(rInv).Mod(m);
-				}
-				else
-				{
-					result = core.ProcessBlock(input);
-				}
-			}
-			else
-			{
-				result = core.ProcessBlock(input);
-			}
+            BigInteger input = core.ConvertInput(inBuf, inOff, inLen);
 
-			return core.ConvertOutput(result);
-		}
-	}
+            BigInteger result;
+            if (key is RsaPrivateCrtKeyParameters)
+            {
+                RsaPrivateCrtKeyParameters k = (RsaPrivateCrtKeyParameters)key;
+                BigInteger e = k.PublicExponent;
+                if (e != null)   // can't do blinding without a public exponent
+                {
+                    BigInteger m = k.Modulus;
+                    BigInteger r = BigIntegers.CreateRandomInRange(
+                        BigInteger.One, m.Subtract(BigInteger.One), random);
+
+                    BigInteger blindedInput = r.ModPow(e, m).Multiply(input).Mod(m);
+                    BigInteger blindedResult = core.ProcessBlock(blindedInput);
+
+                    BigInteger rInv = r.ModInverse(m);
+                    result = blindedResult.Multiply(rInv).Mod(m);
+
+                    // defence against Arjen Lenstra’s CRT attack
+                    if (!input.Equals(result.ModPow(e, m)))
+                        throw new InvalidOperationException("RSA engine faulty decryption/signing detected");
+                }
+                else
+                {
+                    result = core.ProcessBlock(input);
+                }
+            }
+            else
+            {
+                result = core.ProcessBlock(input);
+            }
+
+            return core.ConvertOutput(result);
+        }
+    }
 }

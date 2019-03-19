@@ -19,6 +19,7 @@ using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Security.Certificates;
 using Org.BouncyCastle.Utilities.Collections;
 using Org.BouncyCastle.Utilities.Encoders;
+using Org.BouncyCastle.Utilities.IO;
 using Org.BouncyCastle.Utilities.Test;
 using Org.BouncyCastle.X509;
 using Org.BouncyCastle.X509.Extension;
@@ -1390,15 +1391,9 @@ namespace Org.BouncyCastle.Tests
          */
         internal void checkCreation3()
         {
-            ECCurve curve = new FpCurve(
-                new BigInteger("883423532389192164791648750360308885314476597252960362792450860609699839"), // q
-                new BigInteger("7fffffffffffffffffffffff7fffffffffff8000000000007ffffffffffc", 16), // a
-                new BigInteger("6b016c3bdcf18941d0d654921475ca71a9db2fb27d1d37796185c2942c0a", 16)); // b
-
-            ECDomainParameters spec = new ECDomainParameters(
-                curve,
-                curve.DecodePoint(Hex.Decode("020ffa963cdca8816ccc33b8642bedf905c3d358573d3f27fbbd3b3cb9aaaf")), // G
-                new BigInteger("883423532389192164791648750360308884807550341691627752275345424702807307")); // n
+            X9ECParameters x9 = ECNamedCurveTable.GetByName("prime239v1");
+            ECCurve curve = x9.Curve;
+            ECDomainParameters spec = new ECDomainParameters(curve, x9.G, x9.N, x9.H);
 
             ECPrivateKeyParameters privKey = new ECPrivateKeyParameters(
                 "ECDSA",
@@ -1532,16 +1527,9 @@ namespace Org.BouncyCastle.Tests
             string				algorithm,
             DerObjectIdentifier	algOid)
         {
-            FpCurve curve = new FpCurve(
-                new BigInteger("6864797660130609714981900799081393217269435300143305409394463459185543183397656052122559640661454554977296311391480858037121987999716643812574028291115057151"), // q (or p)
-                new BigInteger("01FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFC", 16),   // a
-                new BigInteger("0051953EB9618E1C9A1F929A21A0B68540EEA2DA725B99B315F3B8B489918EF109E156193951EC7E937B1652C0BD3BB1BF073573DF883D2C34F1EF451FD46B503F00", 16));  // b
-
-            ECDomainParameters spec = new ECDomainParameters(
-                curve,
-//				curve.DecodePoint(Hex.Decode("02C6858E06B70404E9CD9E3ECB662395B4429C648139053FB521F828AF606B4D3DBAA14B5E77EFE75928FE1DC127A2FFA8DE3348B3C1856A429BF97E7E31C2E5BD66")), // G
-                curve.DecodePoint(Hex.Decode("0200C6858E06B70404E9CD9E3ECB662395B4429C648139053FB521F828AF606B4D3DBAA14B5E77EFE75928FE1DC127A2FFA8DE3348B3C1856A429BF97E7E31C2E5BD66")), // G
-                new BigInteger("01FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFA51868783BF2F966B7FCC0148F709A5D03BB5C9B8899C47AEBB6FB71E91386409", 16)); // n
+            X9ECParameters x9 = ECNamedCurveTable.GetByName("secp521r1");
+            ECCurve curve = x9.Curve;
+            ECDomainParameters spec = new ECDomainParameters(curve, x9.G, x9.N, x9.H);
 
             ECPrivateKeyParameters privKey = new ECPrivateKeyParameters(
                 "ECDSA",
@@ -2426,6 +2414,19 @@ namespace Org.BouncyCastle.Tests
             return new AsymmetricCipherKeyPair(pubKey, privKey);
         }
 
+        private void rfc4491Test()
+        {
+            X509CertificateParser certFact = new X509CertificateParser();
+
+            X509Certificate x509 = certFact.ReadCertificate(new MemoryStream(gostRFC4491_94, false));
+
+            x509.Verify(x509.GetPublicKey());
+
+            x509 = (X509Certificate)certFact.ReadCertificate(new MemoryStream(gostRFC4491_2001, false));
+
+            x509.Verify(x509.GetPublicKey());
+        }
+
         private void doTestNullDerNullCert()
         {
             AsymmetricCipherKeyPair keyPair = GenerateLongFixedKeys();
@@ -2452,7 +2453,7 @@ namespace Org.BouncyCastle.Tests
 
             DerSequence seq = new DerSequence(
                 tbsCertificate,
-                new AlgorithmIdentifier(sig.ObjectID),
+                new AlgorithmIdentifier(sig.Algorithm),
                 certStruct.Signature);
 
             try
@@ -2467,6 +2468,71 @@ namespace Org.BouncyCastle.Tests
             {
                 Fail("doTestNullDerNull failed - exception " + e.ToString(), e);
             }
+        }
+
+        private void pemFileTest()
+        {
+            X509CertificateParser fact = new X509CertificateParser();
+
+            ICollection certs1 = fact.ReadCertificates(GetTestDataAsStream("cert_chain.data"));
+            IsTrue("certs wrong <cr><nl>", 2 == certs1.Count);
+
+            MemoryStream input = new MemoryStream(Streams.ReadAll(GetTestDataAsStream("cert_chain.data")), false);
+
+            ISet certs2 = new HashSet();
+            while (input.Position < input.Length)
+            {
+                X509Certificate c = fact.ReadCertificate(input);
+
+                // this isn't strictly correct with the way it's defined in the Java JavaDoc - need it for backward
+                // compatibility.
+                if (c != null)
+                {
+                    certs2.Add(c);
+                }
+            }
+            IsTrue("certs size <cr><nl>", certs1.Count == certs2.Count);
+
+            certs2.RemoveAll(certs1);
+            IsTrue("collection not empty", certs2.Count == 0);
+        }
+
+        private void invalidCrls()
+        {
+            X509CrlParser crlParser = new X509CrlParser();
+
+            ICollection crls = crlParser.ReadCrls(GetTestDataAsStream("cert_chain.data"));
+            IsTrue("multi crl", crls.Count == 0);
+
+            X509Crl crl = crlParser.ReadCrl(GetTestDataAsStream("cert_chain.data"));
+            IsTrue("single crl", crl == null);
+        }
+
+        private void pemFileTestWithNl()
+        {
+            X509CertificateParser fact = new X509CertificateParser();
+
+            ICollection certs1 = fact.ReadCertificates(GetTestDataAsStream("cert_chain_nl.data"));
+            IsTrue("certs wrong <nl>", 2 == certs1.Count);
+
+            MemoryStream input = new MemoryStream(Streams.ReadAll(GetTestDataAsStream("cert_chain_nl.data")), false);
+
+            ISet certs2 = new HashSet();
+            while (input.Position < input.Length)
+            {
+                X509Certificate c = fact.ReadCertificate(input);
+
+                // this isn't strictly correct with the way it's defined in the Java JavaDoc - need it for backward
+                // compatibility.
+                if (c != null)
+                {
+                    certs2.Add(c);
+                }
+            }
+            IsTrue("certs size <nl>", certs1.Count == certs2.Count);
+
+            certs2.RemoveAll(certs1);
+            IsTrue("collection not empty", certs2.Count == 0);
         }
 
         public override void PerformTest()
@@ -2518,7 +2584,12 @@ namespace Org.BouncyCastle.Tests
             checkCrlCreation3();
 
             pemTest();
+            pemFileTest();
+            pemFileTestWithNl();
             pkcs7Test();
+            rfc4491Test();
+
+            invalidCrls();
 
             doTestForgedSignature();
 

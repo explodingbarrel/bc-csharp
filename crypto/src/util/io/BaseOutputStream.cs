@@ -11,8 +11,25 @@ namespace Org.BouncyCastle.Utilities.IO
 		public sealed override bool CanRead { get { return false; } }
         public sealed override bool CanSeek { get { return false; } }
         public sealed override bool CanWrite { get { return !closed; } }
-		public override void Close() { closed = true; }
-        public override void Flush() {}
+
+#if PORTABLE
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                closed = true;
+            }
+            base.Dispose(disposing);
+        }
+#else
+        public override void Close()
+        {
+            closed = true;
+            base.Close();
+        }
+#endif
+
+        public override void Flush() { }
         public sealed override long Length { get { throw new NotSupportedException(); } }
         public sealed override long Position
         {
@@ -43,5 +60,10 @@ namespace Org.BouncyCastle.Utilities.IO
 		{
 			Write(buffer, 0, buffer.Length);
 		}
-	}
+
+        public override void WriteByte(byte b)
+        {
+            Write(new byte[]{ b }, 0, 1);
+        }
+    }
 }

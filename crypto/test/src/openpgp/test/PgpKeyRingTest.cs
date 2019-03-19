@@ -18,6 +18,8 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
     public class PgpKeyRingTest
         : SimpleTest
     {
+        private static readonly SecureRandom Random = new SecureRandom();
+
         private static readonly byte[] pub1 = Base64.Decode(
             "mQGiBEA83v0RBADzKVLVCnpWQxX0LCsevw/3OLs0H7MOcLBQ4wMO9sYmzGYn"
             + "xpVj+4e4PiCP7QBayWyy4lugL6Lnw7tESvq3A4v3fefcxaCTkJrryiKn4+Cg"
@@ -645,39 +647,60 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
             + "EQIABgUCOCpiHgAKCRDj8lhUEo8OeQ+QAKCbOTscyUnWHSrDo4fIy0MThEjhOgCe"
             + "L4Kb7TWkd/OHQScVBO8sTUz0+2g=");
 
-//		private static readonly byte[] pub6check = Base64.Decode("62O9");
+        private static readonly byte[] pub6check = Base64.Decode("62O9");
 
         //
-        // revoked sub key
+        // revoked master key
         //
         private static readonly byte[] pub7 = Base64.Decode(
-            "mQGiBEFOsIwRBADcjRx7nAs4RaWsQU6p8/ECLZD9sSeYc6CN6UDI96RKj0/hCzMs"
-            + "qlA0+9fzGZ7ZEJ34nuvDKlhKGC7co5eOiE0a9EijxgcrZU/LClZWa4YfyNg/ri6I"
-            + "yTyfOfrPQ33GNQt2iImDf3FKp7XKuY9nIxicGQEaW0kkuAmbV3oh0+9q8QCg/+fS"
-            + "epDEqEE/+nKONULGizKUjMED/RtL6RThRftZ9DOSdBytGYd48z35pca/qZ6HA36K"
-            + "PVQwi7V77VKQyKFLTOXPLnVyO85hyYB/Nv4DFHN+vcC7/49lfoyYMZlN+LarckHi"
-            + "NL154wmmzygB/KKysvWBLgkErEBCD0xBDd89iTQNlDtVQAWGORVffl6WWjOAkliG"
-            + "3dL6A/9A288HfFRnywqi3xddriV6wCPmStC3dkCS4vHk2ofS8uw4ZNoRlp1iEPna"
-            + "ai2Xa9DX1tkhaGk2k96MqqbBdGpbW8sMA9otJ9xdMjWEm/CgJUFUFQf3zaVy3mkM"
-            + "S2Lvb6P4Wc2l/diEEIyK8+PqJItSh0OVU3K9oM7ngHwVcalKILQVUkV2b2tlZCA8"
-            + "UmV2b2tlZEB0ZWQ+iQBOBBARAgAOBQJBTrCMBAsDAgECGQEACgkQvglkcFA/c63+"
-            + "QgCguh8rsJbPTtbhZcrqBi5Mo1bntLEAoPZQ0Kjmu2knRUpHBeUemHDB6zQeuQIN"
-            + "BEFOsIwQCAD2Qle3CH8IF3KiutapQvMF6PlTETlPtvFuuUs4INoBp1ajFOmPQFXz"
-            + "0AfGy0OplK33TGSGSfgMg71l6RfUodNQ+PVZX9x2Uk89PY3bzpnhV5JZzf24rnRP"
-            + "xfx2vIPFRzBhznzJZv8V+bv9kV7HAarTW56NoKVyOtQa8L9GAFgr5fSI/VhOSdvN"
-            + "ILSd5JEHNmszbDgNRR0PfIizHHxbLY7288kjwEPwpVsYjY67VYy4XTjTNP18F1dD"
-            + "ox0YbN4zISy1Kv884bEpQBgRjXyEpwpy1obEAxnIByl6ypUM2Zafq9AKUJsCRtMI"
-            + "PWakXUGfnHy9iUsiGSa6q6Jew1XpMgs7AAICB/93zriSvSHqsi1FeEmUBo431Jkh"
-            + "VerIzb6Plb1j6FIq+s3vyvx9K+dMvjotZqylWZj4GXpH+2xLJTjWkrGSfUZVI2Nk"
-            + "nyOFxUCKLLqaqVBFAQIjULfvQfGEWiGQKk9aRLkdG+D+8Y2N9zYoBXoQ9arvvS/t"
-            + "4mlOsiuaTe+BZ4x+BXTpF4b9sKZl7V8QP/TkoJWUdydkvxciHdWp7ssqyiKOFRhG"
-            + "818knDfFQ3cn2w/RnOb+7AF9wDncXDPYLfpPv9b2qZoLrXcyvlLffGDUdWs553ut"
-            + "1F5AprMURs8BGmY9BnjggfVubHdhTUoA4gVvrdaf+D9NwZAl0xK/5Y/oPuMZiQBG"
-            + "BBgRAgAGBQJBTrCMAAoJEL4JZHBQP3Ot09gAoMmLKloVDP+WhDXnsM5VikxysZ4+"
-            + "AKCrJAUO+lYAyPYwEwgK+bKmUGeKrIkARgQoEQIABgUCQU6wpQAKCRC+CWRwUD9z"
-            + "rQK4AJ98kKFxGU6yhHPr6jYBJPWemTNOXgCfeGB3ox4PXeS4DJDuLy9yllytOjo=");
+              "mQGiBFKQDEMRBACtcEzu15gGDrZKLuO2zgDJ9qFkweOxKyeO45LKIfUGBful"
+            + "lheoFHbsJIeNGjWbSOfWWtphTaSu9//BJt4xxg2pqVLYqzR+hEPpDy9kXxnZ"
+            + "LwwxjAP2TcOvuZKWe+JzoYQxDunOH4Zu9CPJhZhF3RNPw+tbv0jHfTV/chtb"
+            + "23Dj5wCg7eoM8bL9NYXacsAfkS//m+AB1MkD/jEZJqJSQHW8WVP7wKRrAZse"
+            + "N4l9b8+yY4RwLIodhD8wGsMYjkCF4yb/SQ5QlmLlvrHDLBofRzG+8oxldX4o"
+            + "GLZWvqPmW+BlS4QNSr+ZBu+OwnpClXG2pR+ExumXNoeArREyylrmOgD+0cUa"
+            + "8K2UbOxbJ8EioyOKxa7wjUVxmHmhBACAGQGLT/lpHA5zcU0g8AlSk8fsd+bB"
+            + "nwa/+9xdLqVsCTZdOWULtPOw9hbAdjjAy0L4M/MDAJYYtCEl9rB7aOc9PVdT"
+            + "h7CT9Ma6ltiSMKDlqWbDmogNEGx9Gz3GjiSGxAy/SN6JR1On4c60TAiTv6eE"
+            + "uEHszE6CH4qceK5W8HLLB4hJBCARAgAJBQJSkA0OAh0CAAoJEBCIvJhXZzdI"
+            + "X8wAn0qUP/jqAuPEX9g2XCr5jN3RKvKjAKDpx4NP7P1/yLN2ycFIgxKZ1plK"
+            + "CLACAAO0J3Jldm9rZSAoUmV2b2tlIFRlc3QpIDxyZXZva2VAdGVzdC50ZXN0"
+            + "PohiBBMRAgAiBQJSkAxDAhsDBgsJCAcDAgYVCAIJCgsEFgIDAQIeAQIXgAAK"
+            + "CRAQiLyYV2c3SKw0AJ9kufxvnorVOv6a+WM+I/bNP+mjLQCgtPKuwTyeZU2k"
+            + "Sec1fJZUssDL1hGwAgADuQENBFKQDEMQBACruJ54GuhUaXgqGzu/HsCrgGQA"
+            + "n86PZW1qPCX28E9sayEmVOgzSDA/OT5c05P0PVLhMNEguSnUGC249MpZfPK/"
+            + "9LVKMXATZLzEB6lFX1YJdfrrb9KrQ5kdDhOcFXm1GIGBwLzjUmXYRVPH+TsT"
+            + "4QFvDpfIANQZfKK4UV5BJzJV5wADBQP/ew75dy1x58KWpPqfeH1OVln/Ui6e"
+            + "EDyyISic147+FIfVDuLtWoxMFE0ZPg47+rEQrhWC96izaSKPW97y5bkWz5PG"
+            + "CMChnLcg+3M91x/QCGzNhzVMiVpY5VhBDFP+7iiOaKYRiN/x7oasf2482Ny8"
+            + "1oiykOZUm8FCUQnRmJzIlbiISQQYEQIACQUCUpAMQwIbDAAKCRAQiLyYV2c3"
+            + "SL04AJ9VceD1DtcEDaWPDzFPgpe3ZfiXiQCfe5azYl26JpHSJvNKZRLi0I8H"
+            + "shCwAgAD");
 
-//		private static readonly byte[] pub7check = Base64.Decode("f/YQ");
+        private static readonly byte[] pub7sub = Base64.Decode(
+              "mQGiBFKQFFURBAD7CTE4RYPD7O+ki7pl/vXSZsSR0kQhCD9BR4lwE/Iffzmr"
+            + "vK8tmr2yLKWoXyoc3VF0Gdg/VATDcawBnKSjuCIsFZ58Edacb7uVRl4+ACiu"
+            + "OsvCKl9JuZ54SQ/tbD+NFS+HWNyVlWn7vDv8l+37DWNxuQRIYtQR+drAnIwQ"
+            + "g0O4owCg5a9cGAaN0zNVssUo6GFEoAI8nE0EAJMxQMcHTlLQQN1c549Ub0+E"
+            + "LV4dRIxjO7O6yi6Bg5udwS9Un1XeHF4GM7fj95WHi7o9sgErr2evhuGWl337"
+            + "ySytE1npk2F/jqevhAJazQTuilEuyjMbCShV39qJlEKtU9uHQYxN8oqGT9Ot"
+            + "lOoXXtrgfHbsrouCVwm4Jk14kzCaA/4okwrQwGkPlXRpVFyLn4GwrGivG7eh"
+            + "enRbAd2SQBiNVKmMsKLxHT1avZ11qcx6OU3ixdw5wYmq7TNR+5FXiz/e2MIq"
+            + "m7VhKONN21F7WC7siHxXfqqI/uz2tTPrFoLbnr/j/RZZRUMh6qUQrWpv58ci"
+            + "Bh+xkWCRantLCL9khuvRSrQncmV2b2tlIChSZXZva2UgVGVzdCkgPHJldm9r"
+            + "ZUB0ZXN0LnRlc3Q+iGIEExECACIFAlKQFFUCGwMGCwkIBwMCBhUIAgkKCwQW"
+            + "AgMBAh4BAheAAAoJEDKzvtpHqpp2DN4AoNS9M634KdvZT25DclGpb2bCFjv0"
+            + "AKDYXl5fIRGi583vFJ9C/q8hNGyNc7ACAAO5AQ0EUpAUVRAEALusV5UIL4gB"
+            + "6qQk++h+czV9KS0yxwgZyR+dJza+duEG88aNv28Wmjpfr3ZkvIiUaOcxFoct"
+            + "LgVGtPJM1HhWJtoA94CRBFTGzLfUIfXHcyXSdAw8Qh96svRl2w2KM+/pJl1r"
+            + "A3CWIy48jQei0mLwElRELLG7HJKYJxjCbg4+ihYTAAMGA/42PgHTV5VpF7YC"
+            + "XodlLOyGDVOoRjsvu0Gu/P88QnVP2jN57MJcla224aN3pGprtcbTwyjt+dtf"
+            + "5IJlB+3RZLczyqvT5hw7j9h81mr3RDbg3cn57xdYwQNP+6b6Wf9QRmaE813s"
+            + "g3kF0IJ0oFvwZdHnjndQ0JCrKaPflGSO6msjIYhTBCgRAgATBQJSkBXdDB0B"
+            + "U3VwZXJzZWRlZAAKCRAys77aR6qadmZPAJ0eJzmgBLTWK9RIbVtRUFzm736I"
+            + "hACgsPGHdZmLUFhV80fvYnUtB7TYGeKwAgADiEkEGBECAAkFAlKQFFUCGwwA"
+            + "CgkQMrO+2keqmnZGIACfRTkdqi6b7fjqkWxx7DysKBedgS8An1TJrhhkeJVd"
+            + "smkOCYLILgjrBHq4sAIAAw==");
 
         private static readonly byte[] pub8 = Base64.Decode(
             "mQGiBEEcraYRBADFYj+uFOhHz5SdECvJ3Z03P47gzmWLQ5HH8fPYC9rrv7AgqFFX"
@@ -1060,6 +1083,269 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
             + "8fHUuFrE2pcp32y3ciO2i+uNVEkNDoaVVNw5eHQaXXWpllI/Pe6LnBl4vkyc"
             + "n3pjONa4PKrePkEsCUhRbIySqXIHuNwZumDOlKzZHDpCUw72LaC6S6zwuoEf"
             + "ucOcxTeGIUViANWXyTIKkHfo7HfigixJIL8nsAFn");
+
+        // Key from http://www.angelfire.com/pr/pgpf/pgpoddities.html
+        private static readonly char[] v3KeyPass = "test@key.test".ToCharArray();
+
+        private static readonly byte[] pubv3 = Base64.Decode(
+            "mQENAzroPPgAAAEIANnTx/gHfag7qRMG6cVUnYZJjLcsdF6JSaVs+PUDCZ8l2+Z2" +
+            "V9tgxByp26bymIlq5qFFeoA5vCiKc8qzYiEVLJVVIIDjw/id2gq/TgmxoLAwiDQM" +
+            "TUKdCFa6pmR/uaxyrnJxfUA7+Qh0R0OjoCxNlrmyO3eiKstsJGqSUFIQq7GhcHc4" +
+            "nbV59zHhEWnH7DX7sDa9CgF11WxM3sjWp15iOoP1nixhmchDtQ7foUxLsCF36G/4" +
+            "ijcbN2NjiCDYMFburN8fXgrQzYHAIIiVFE0J+fbXNfPRmnbhQdaC8rIdiQ3tExBb" +
+            "N0qWhGPT9M4JOZd1yPdFMb9gbntd8VZkiPd6/3sABRG0FHRlc3QgPHRlc3RAa2V5" +
+            "LnRlc3Q+iQEVAwUQOug8+PFWZIj3ev97AQH7NQgAo3sH+KcsPtAbyp5U02J9h3Ro" +
+            "aiKpAYxg3rfUVo/RH6hmCWT/AlPHLPZZC/tKiPkuIm2V3Xqyum530N0sBYxNzgNp" +
+            "us8mK9QurYj2omKzf1ltN+uNHR8vjB8s7jEd/CDCARu81PqNoVq2b9JRFGpGbAde" +
+            "7kQ/a0r2/IsJ8fz0iSpCH0geoHt3sBk9MyEem4uG0e2NzlH2wBz4H8l8BNHRHBq0" +
+            "6tGH4h11ZhH3FiNzJWibT2AvzLCqar2qK+6pohKSvIp8zEP7Y/iQzCvkuOfHsUOH" +
+            "4Utgg85k09hRDZ3pRRL/4R+Z+/1uXb+n6yKbOmpmi7U7wc9IwZxtTlGXsNIf+Q=="
+        );
+
+        private static readonly byte[] privv3 = Base64.Decode(
+            "lQOgAzroPPgAAAEIANnTx/gHfag7qRMG6cVUnYZJjLcsdF6JSaVs+PUDCZ8l2+Z2" +
+            "V9tgxByp26bymIlq5qFFeoA5vCiKc8qzYiEVLJVVIIDjw/id2gq/TgmxoLAwiDQM" +
+            "TUKdCFa6pmR/uaxyrnJxfUA7+Qh0R0OjoCxNlrmyO3eiKstsJGqSUFIQq7GhcHc4" +
+            "nbV59zHhEWnH7DX7sDa9CgF11WxM3sjWp15iOoP1nixhmchDtQ7foUxLsCF36G/4" +
+            "ijcbN2NjiCDYMFburN8fXgrQzYHAIIiVFE0J+fbXNfPRmnbhQdaC8rIdiQ3tExBb" +
+            "N0qWhGPT9M4JOZd1yPdFMb9gbntd8VZkiPd6/3sABREDXB5zk3GNdSkH/+/447Kq" +
+            "hR9uM+UnZz7wDkzmt+7xbNg9F2pr/tghVCM7D0PO1YjH4DBpU1ZRO+v1t/eBB/Jd" +
+            "3lJYdlWYHOefJkBi44gNAafZ8ysPOJk6OGOjas/sr+JRFiX9Mgzrs2IDiejmuA98" +
+            "DLuSuNtzFKbE2/DDdOBEizYUjqPLlCdn5sVEt+0WKWJiAv7YonCGguWS3RKfTaYk" +
+            "9IE9SbI+qph9JsuyTD22GLv+gTMvwCkC1DVaHIVgzURpdnlyYyz4DBh3pAgg0nh6" +
+            "gpUTsjnUmrvdh+r8qj3oXH7WBMhs6qKYvU1Go5iV3S1Cu4H/Z/+s6XUFgQShevVe" +
+            "VCy0QtmWSFeySekEACHLJIdBDa8K4dcM2wvccz587D4PtKvMG5j71raOcgVY+r1k" +
+            "e6au/fa0ACqLNvn6+vFHG+Rurn8RSKV31YmTpx7J5ixTOsB+wVcwTYbrw8uNlBWc" +
+            "+IkqPwHrtdK95GIYQykfPW95PRudsOBdxwQW4Ax/WCst3fbjo0SZww0Os+3WBADJ" +
+            "/Nv0mjikXRmqJIzfuI2yxxX4Wm6vqXJkPF7LGtSMB3VEJ3qPsysoai5TYboxA8C1" +
+            "4rQjIoQjA+87gxZ44PUVxrxBonITCLXJ3GsvDQ2PNhS6WQ9Cf89vtYW1vLW65Nex" +
+            "+7AuVRepKhx6Heqdf7S03m6UYliIglrEzgEWM1XrOwP/gLMsme4h0LjLgKfd0LBk" +
+            "qSMdu21VSl60TMTjxav149AdutzuCVa/yPBM/zLQdlvQoGYg2IbN4+7gDHKURcSx" +
+            "DgOAzCcEZxdMvRk2kaOI5RRf5gV9e+ErvEMzJ/xT8xWsi+aLOhaDMbwq2LLiK2L+" +
+            "tXV/Z3H/Ot4u3E7H+6fHPElFYbQUdGVzdCA8dGVzdEBrZXkudGVzdD4="
+        );
+
+        private static readonly byte[] probExpPubKey = Base64.Decode(
+            "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");
 
         [Test]
         public void PerformTest1()
@@ -1603,8 +1889,8 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
             byte[] encRing = pubRings.GetEncoded();
         }
 
-        [Test, Explicit]
-        public void PerformTest7()
+        [Test]
+        public void TestRevocation()
         {
             PgpPublicKeyRing pgpPub = new PgpPublicKeyRing(pub7);
             PgpPublicKey masterKey = null;
@@ -1614,28 +1900,64 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
                 if (k.IsMasterKey)
                 {
                     masterKey = k;
+                }
+            }
+
+            int count = 0;
+            PgpSignature sig = null;
+            foreach (PgpSignature pgpSig in masterKey.GetSignaturesOfType(PgpSignature.KeyRevocation))
+            {
+                sig = pgpSig;
+                ++count;
+            }
+
+            if (count != 1)
+            {
+                Fail("wrong number of revocations in test7.");
+            }
+
+            sig.InitVerify(masterKey);
+
+            if (!sig.VerifyCertification(masterKey))
+            {
+                Fail("failed to verify revocation certification");
+            }
+
+            pgpPub = new PgpPublicKeyRing(pub7sub);
+            masterKey = null;
+
+            foreach (PgpPublicKey k in pgpPub.GetPublicKeys())
+            {
+                if (k.IsMasterKey)
+                {
+                    masterKey = k;
                     continue;
                 }
 
-                int count = 0;
-                PgpSignature sig = null;
+                count = 0;
+                sig = null;
 
-                foreach (PgpSignature sigTemp in k.GetSignaturesOfType(PgpSignature.SubkeyRevocation))
+                foreach (PgpSignature pgpSig in k.GetSignaturesOfType(PgpSignature.SubkeyRevocation))
                 {
-                    sig = sigTemp;
-                    count++;
+                    sig = pgpSig;
+                    ++count;
                 }
 
                 if (count != 1)
                 {
-                    Fail("wrong number of revocations in test7.");
+                    Fail("wrong number of revocations in test7 subkey.");
+                }
+
+                if (sig.SignatureType != PgpSignature.SubkeyRevocation)
+                {
+                    Fail("wrong signature found");
                 }
 
                 sig.InitVerify(masterKey);
 
-                if (!sig.VerifyCertification(k))
+                if (!sig.VerifyCertification(masterKey, k))
                 {
-                    Fail("failed to verify revocation certification");
+                    Fail("failed to verify revocation certification of subkey");
                 }
             }
         }
@@ -1815,9 +2137,9 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
         {
             char[] passPhrase = "hello".ToCharArray();
             DsaParametersGenerator pGen = new DsaParametersGenerator();
-            pGen.Init(512, 80, new SecureRandom());
+            pGen.Init(512, 80, Random);
             DsaParameters dsaParams = pGen.GenerateParameters();
-            DsaKeyGenerationParameters dsaKgp = new DsaKeyGenerationParameters(new SecureRandom(), dsaParams);
+            DsaKeyGenerationParameters dsaKgp = new DsaKeyGenerationParameters(Random, dsaParams);
             IAsymmetricCipherKeyPairGenerator dsaKpg = GeneratorUtilities.GetKeyPairGenerator("DSA");
             dsaKpg.Init(dsaKgp);
 
@@ -1833,7 +2155,7 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
             BigInteger p = new BigInteger("9494fec095f3b85ee286542b3836fc81a5dd0a0349b4c239dd38744d488cf8e31db8bcb7d33b41abb9e5a33cca9144b1cef332c94bf0573bf047a3aca98cdf3b", 16);
 
             ElGamalParameters elParams = new ElGamalParameters(p, g);
-            ElGamalKeyGenerationParameters elKgp = new ElGamalKeyGenerationParameters(new SecureRandom(), elParams);
+            ElGamalKeyGenerationParameters elKgp = new ElGamalKeyGenerationParameters(Random, elParams);
             elgKpg.Init(elKgp);
 
             //
@@ -1844,7 +2166,7 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
             PgpKeyPair elgKeyPair = new PgpKeyPair(PublicKeyAlgorithmTag.ElGamalEncrypt, elgKp, DateTime.UtcNow);
 
             PgpKeyRingGenerator keyRingGen = new PgpKeyRingGenerator(PgpSignature.PositiveCertification, dsaKeyPair,
-                "test", SymmetricKeyAlgorithmTag.Aes256, passPhrase, null, null, new SecureRandom());
+                "test", SymmetricKeyAlgorithmTag.Aes256, passPhrase, false, null, null, Random);
 
             keyRingGen.AddSubKey(elgKeyPair);
 
@@ -1887,12 +2209,10 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
         [Test]
         public void InsertMasterTest()
         {
-            SecureRandom random = new SecureRandom();
-
             char[] passPhrase = "hello".ToCharArray();
             IAsymmetricCipherKeyPairGenerator rsaKpg = GeneratorUtilities.GetKeyPairGenerator("RSA");
 
-            rsaKpg.Init(new KeyGenerationParameters(random, 512));
+            rsaKpg.Init(new KeyGenerationParameters(Random, 512));
 
             //
             // this is quicker because we are using pregenerated parameters.
@@ -1904,12 +2224,12 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
             PgpKeyPair rsaKeyPair2 = new PgpKeyPair(PublicKeyAlgorithmTag.RsaGeneral, rsaKp, DateTime.UtcNow);
 
             PgpKeyRingGenerator keyRingGen = new PgpKeyRingGenerator(PgpSignature.PositiveCertification,
-                rsaKeyPair1, "test", SymmetricKeyAlgorithmTag.Aes256, passPhrase, null, null, random);
+                rsaKeyPair1, "test", SymmetricKeyAlgorithmTag.Aes256, passPhrase, false, null, null, Random);
             PgpSecretKeyRing secRing1 = keyRingGen.GenerateSecretKeyRing();
             PgpPublicKeyRing pubRing1 = keyRingGen.GeneratePublicKeyRing();
 
             keyRingGen = new PgpKeyRingGenerator(PgpSignature.PositiveCertification,
-                rsaKeyPair2, "test", SymmetricKeyAlgorithmTag.Aes256, passPhrase, null, null, random);
+                rsaKeyPair2, "test", SymmetricKeyAlgorithmTag.Aes256, passPhrase, false, null, null, Random);
             PgpSecretKeyRing secRing2 = keyRingGen.GenerateSecretKeyRing();
             PgpPublicKeyRing pubRing2 = keyRingGen.GeneratePublicKeyRing();
 
@@ -1947,9 +2267,9 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
 
             IAsymmetricCipherKeyPairGenerator dsaKpg = GeneratorUtilities.GetKeyPairGenerator("DSA");
             DsaParametersGenerator pGen = new DsaParametersGenerator();
-            pGen.Init(512, 80, new SecureRandom());
+            pGen.Init(512, 80, Random);
             DsaParameters dsaParams = pGen.GenerateParameters();
-            DsaKeyGenerationParameters kgp = new DsaKeyGenerationParameters(new SecureRandom(), dsaParams);
+            DsaKeyGenerationParameters kgp = new DsaKeyGenerationParameters(Random, dsaParams);
             dsaKpg.Init(kgp);
 
             //
@@ -1965,7 +2285,7 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
             BigInteger p = new BigInteger("9494fec095f3b85ee286542b3836fc81a5dd0a0349b4c239dd38744d488cf8e31db8bcb7d33b41abb9e5a33cca9144b1cef332c94bf0573bf047a3aca98cdf3b", 16);
 
             ElGamalParameters elParams = new ElGamalParameters(p, g);
-            ElGamalKeyGenerationParameters elKgp = new ElGamalKeyGenerationParameters(new SecureRandom(), elParams);
+            ElGamalKeyGenerationParameters elKgp = new ElGamalKeyGenerationParameters(Random, elParams);
             elgKpg.Init(elKgp);
 
             //
@@ -1978,7 +2298,7 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
             PgpKeyPair elgKeyPair = new PgpKeyPair(PublicKeyAlgorithmTag.ElGamalEncrypt, elgKp, DateTime.UtcNow);
 
             PgpKeyRingGenerator keyRingGen = new PgpKeyRingGenerator(PgpSignature.PositiveCertification, dsaKeyPair,
-                "test", SymmetricKeyAlgorithmTag.Aes256, passPhrase, true, null, null, new SecureRandom());
+                "test", SymmetricKeyAlgorithmTag.Aes256, passPhrase, true, null, null, Random);
 
             keyRingGen.AddSubKey(elgKeyPair);
 
@@ -2021,28 +2341,121 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
         [Test]
         public void RewrapTest()
         {
-            SecureRandom rand = new SecureRandom();
-
             // Read the secret key rings
             PgpSecretKeyRingBundle privRings = new PgpSecretKeyRingBundle(
                 new MemoryStream(rewrapKey, false));
 
+            char[] newPass = "fred".ToCharArray();
+
             foreach (PgpSecretKeyRing pgpPrivEnum in privRings.GetKeyRings())
             {
-                foreach (PgpSecretKey pgpKeyEnum in pgpPrivEnum.GetSecretKeys())
+                PgpSecretKeyRing pgpPriv = pgpPrivEnum;
+
+                foreach (PgpSecretKey pgpKeyEnum in pgpPriv.GetSecretKeys())
                 {
+                    long oldKeyID = pgpKeyEnum.KeyId;
+
                     // re-encrypt the key with an empty password
-                    PgpSecretKeyRing pgpPriv = PgpSecretKeyRing.RemoveSecretKey(pgpPrivEnum, pgpKeyEnum);
+                    pgpPriv = PgpSecretKeyRing.RemoveSecretKey(pgpPriv, pgpKeyEnum);
                     PgpSecretKey pgpKey = PgpSecretKey.CopyWithNewPassword(
                         pgpKeyEnum,
                         rewrapPass,
                         null,
                         SymmetricKeyAlgorithmTag.Null,
-                        rand);
+                        Random);
                     pgpPriv = PgpSecretKeyRing.InsertSecretKey(pgpPriv, pgpKey);
 
                     // this should succeed
                     PgpPrivateKey privTmp = pgpKey.ExtractPrivateKey(null);
+
+                    if (pgpKey.KeyId != oldKeyID || pgpKey.S2kUsage != SecretKeyPacket.UsageNone)
+                    {
+                        Fail("usage/key ID mismatch");
+                    }
+                }
+
+                foreach (PgpSecretKey pgpKeyEnum in pgpPriv.GetSecretKeys())
+                {
+                    long oldKeyID = pgpKeyEnum.KeyId;
+
+                    // re-encrypt the key with an empty password
+                    pgpPriv = PgpSecretKeyRing.RemoveSecretKey(pgpPriv, pgpKeyEnum);
+                    PgpSecretKey pgpKey = PgpSecretKey.CopyWithNewPassword(
+                        pgpKeyEnum,
+                        null,
+                        newPass,
+                        SymmetricKeyAlgorithmTag.Cast5,
+                        Random);
+                    pgpPriv = PgpSecretKeyRing.InsertSecretKey(pgpPriv, pgpKey);
+
+                    // this should succeed
+                    PgpPrivateKey privTmp = pgpKey.ExtractPrivateKey(newPass);
+
+                    if (pgpKey.KeyId != oldKeyID || pgpKey.S2kUsage != SecretKeyPacket.UsageChecksum)
+                    {
+                        Fail("usage/key ID mismatch");
+                    }
+                }
+            }
+        }
+
+        [Test]
+        public void RewrapTestV3()
+        {
+            // Read the secret key rings
+            PgpSecretKeyRingBundle privRings = new PgpSecretKeyRingBundle(
+                new MemoryStream(privv3, false));
+
+            char[] newPass = "fred".ToCharArray();
+
+            foreach (PgpSecretKeyRing pgpPrivEnum in privRings.GetKeyRings())
+            {
+                PgpSecretKeyRing pgpPriv = pgpPrivEnum;
+
+                foreach (PgpSecretKey pgpKeyEnum in pgpPriv.GetSecretKeys())
+                {
+                    long oldKeyID = pgpKeyEnum.KeyId;
+
+                    // re-encrypt the key with an empty password
+                    pgpPriv = PgpSecretKeyRing.RemoveSecretKey(pgpPriv, pgpKeyEnum);
+                    PgpSecretKey pgpKey = PgpSecretKey.CopyWithNewPassword(
+                        pgpKeyEnum,
+                        v3KeyPass,
+                        null,
+                        SymmetricKeyAlgorithmTag.Null,
+                        Random);
+                    pgpPriv = PgpSecretKeyRing.InsertSecretKey(pgpPriv, pgpKey);
+
+                    // this should succeed
+                    PgpPrivateKey privTmp = pgpKey.ExtractPrivateKey(null);
+
+                    if (pgpKey.KeyId != oldKeyID)
+                    {
+                        Fail("key ID mismatch");
+                    }
+                }
+
+                foreach (PgpSecretKey pgpKeyEnum in pgpPriv.GetSecretKeys())
+                {
+                    long oldKeyID = pgpKeyEnum.KeyId;
+
+                    // re-encrypt the key with an empty password
+                    pgpPriv = PgpSecretKeyRing.RemoveSecretKey(pgpPriv, pgpKeyEnum);
+                    PgpSecretKey pgpKey = PgpSecretKey.CopyWithNewPassword(
+                        pgpKeyEnum,
+                        null,
+                        newPass,
+                        SymmetricKeyAlgorithmTag.Cast5,
+                        Random);
+                    pgpPriv = PgpSecretKeyRing.InsertSecretKey(pgpPriv, pgpKey);
+
+                    // this should succeed
+                    PgpPrivateKey privTmp = pgpKey.ExtractPrivateKey(newPass);
+
+                    if (pgpKey.KeyId != oldKeyID)
+                    {
+                        Fail("key ID mismatch");
+                    }
                 }
             }
         }
@@ -2122,18 +2535,39 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
             }
         }
 
+        [Test]
+        public void TestExpiryDate()
+        {
+            PgpPublicKeyRingBundle pgpRingCollection = new PgpPublicKeyRingBundle(probExpPubKey);
+
+            foreach (PgpPublicKeyRing pgpRing in pgpRingCollection.GetKeyRings())
+            {
+                foreach (PgpPublicKey pubKey in pgpRing.GetPublicKeys())
+                {
+                    // this key has 2 self signatures on it - the most recent key validity is for 432495 seconds.
+                    if (0x5afd53a9dbb2c40dL == pubKey.KeyId)
+                    {
+                        IsTrue("wrong validity date", pubKey.GetValidSeconds() == 432495);
+                    }
+                    // this key has 3 self signatures on it - the most recent key validity is for 4320173 seconds.
+                    else if (unchecked((long)0x89FCFA4B23363333L) == pubKey.KeyId)
+                    {
+                        IsTrue("wrong validity date", pubKey.GetValidSeconds() == 4320173);
+                    }
+                }
+            }
+        }
+
         public override void PerformTest()
         {
+            TestExpiryDate();
             PerformTest1();
             PerformTest2();
             PerformTest3();
             PerformTest4();
             PerformTest5();
             PerformTest6();
-
-            // NB: This was commented out in the original Java source
-            //PerformTest7();
-
+            TestRevocation();
             PerformTest8();
             PerformTest9();
             PerformTest10();
@@ -2145,6 +2579,40 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
             PublicKeyRingWithX509Test();
             SecretKeyRingWithPersonalCertificateTest();
             InsertMasterTest();
+            LongSubPacketsTest();
+        }
+
+        private void LongSubPacketsTest()
+        {
+            Stream fIn = SimpleTest.GetTestDataAsStream("openpgp.longSigSubPack.asc");
+            Stream bIn = new BufferedStream(fIn);
+            PgpPublicKeyRing pkr = new PgpPublicKeyRing(PgpUtilities.GetDecoderStream(bIn));
+            bIn.Close();
+
+            PgpPublicKey masterpk = pkr.GetPublicKey();
+
+            // Check userids
+            foreach (string uid in masterpk.GetUserIds())
+            {
+                CheckUidSig(masterpk, uid);
+            }
+        }
+
+        private void CheckUidSig(PgpPublicKey pk, string uid)
+        {
+            foreach (PgpSignature sig in pk.GetSignaturesForId(uid))
+            {
+                if (!IsGoodUidSignature(sig, pk, uid))
+                {
+                    Fail("Bad self-signature found for '" + uid + "'");
+                }
+            }
+        }
+
+        private static bool IsGoodUidSignature(PgpSignature sig, PgpPublicKey masterpk, string uid)
+        {
+            sig.InitVerify(masterpk);
+            return sig.VerifyCertification(uid, masterpk);
         }
 
         public override string Name

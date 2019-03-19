@@ -22,21 +22,57 @@ namespace Org.BouncyCastle.Crypto.Tls
         protected short mClientCertificateType = -1;
         protected TlsHandshakeHash mPrepareFinishHash = null;
 
+        /**
+         * Constructor for blocking mode.
+         * @param stream The bi-directional stream of data to/from the client
+         * @param output The stream of data to the client
+         * @param secureRandom Random number generator for various cryptographic functions
+         */
         public TlsServerProtocol(Stream stream, SecureRandom secureRandom)
-            :   base(stream, secureRandom)
-        {
-        }
-
-        public TlsServerProtocol(Stream input, Stream output, SecureRandom secureRandom)
-            :   base(input, output, secureRandom)
+            : base(stream, secureRandom)
         {
         }
 
         /**
-         * Receives a TLS handshake in the role of server
+         * Constructor for blocking mode.
+         * @param input The stream of data from the client
+         * @param output The stream of data to the client
+         * @param secureRandom Random number generator for various cryptographic functions
+         */
+        public TlsServerProtocol(Stream input, Stream output, SecureRandom secureRandom)
+            : base(input, output, secureRandom)
+        {
+        }
+
+        /**
+         * Constructor for non-blocking mode.<br/>
+         * <br/>
+         * When data is received, use {@link #offerInput(java.nio.ByteBuffer)} to
+         * provide the received ciphertext, then use
+         * {@link #readInput(byte[], int, int)} to read the corresponding cleartext.<br/>
+         * <br/>
+         * Similarly, when data needs to be sent, use
+         * {@link #offerOutput(byte[], int, int)} to provide the cleartext, then use
+         * {@link #readOutput(byte[], int, int)} to get the corresponding
+         * ciphertext.
+         * 
+         * @param secureRandom
+         *            Random number generator for various cryptographic functions
+         */
+        public TlsServerProtocol(SecureRandom secureRandom)
+            : base(secureRandom)
+        {
+        }
+
+        /**
+         * Receives a TLS handshake in the role of server.<br/>
+         * <br/>
+         * In blocking mode, this will not return until the handshake is complete.
+         * In non-blocking mode, use {@link TlsPeer#notifyHandshakeComplete()} to
+         * receive a callback when the handshake is complete.
          *
-         * @param mTlsServer
-         * @throws IOException If handshake was not successful.
+         * @param tlsServer
+         * @throws IOException If in blocking mode and handshake was not successful.
          */
         public virtual void Accept(TlsServer tlsServer)
         {
@@ -60,7 +96,7 @@ namespace Org.BouncyCastle.Crypto.Tls
 
             this.mRecordStream.SetRestrictReadVersion(false);
 
-            CompleteHandshake();
+            BlockForHandshake();
         }
 
         protected override void CleanupHandshake()
@@ -88,10 +124,8 @@ namespace Org.BouncyCastle.Crypto.Tls
             get { return mTlsServer; }
         }
 
-        protected override void HandleHandshakeMessage(byte type, byte[] data)
+        protected override void HandleHandshakeMessage(byte type, MemoryStream buf)
         {
-            MemoryStream buf = new MemoryStream(data);
-
             switch (type)
             {
             case HandshakeType.client_hello:
@@ -105,6 +139,8 @@ namespace Org.BouncyCastle.Crypto.Tls
 
                     SendServerHelloMessage();
                     this.mConnectionState = CS_SERVER_HELLO;
+
+                    mRecordStream.NotifyHelloComplete();
 
                     IList serverSupplementalData = mTlsServer.GetServerSupplementalData();
                     if (serverSupplementalData != null)
@@ -162,6 +198,9 @@ namespace Org.BouncyCastle.Crypto.Tls
                         this.mCertificateRequest = mTlsServer.GetCertificateRequest();
                         if (this.mCertificateRequest != null)
                         {
+                            if (TlsUtilities.IsTlsV12(Context) != (mCertificateRequest.SupportedSignatureAlgorithms != null))
+                                throw new TlsFatalAlert(AlertDescription.internal_error);
+
                             this.mKeyExchange.ValidateCertificateRequest(mCertificateRequest);
 
                             SendCertificateRequestMessage(mCertificateRequest);
@@ -177,6 +216,11 @@ namespace Org.BouncyCastle.Crypto.Tls
 
                     this.mRecordStream.HandshakeHash.SealHashAlgorithms();
 
+                    break;
+                }
+                case CS_END:
+                {
+                    RefuseRenegotiation();
                     break;
                 }
                 default:
@@ -315,13 +359,14 @@ namespace Org.BouncyCastle.Crypto.Tls
                     if (this.mExpectSessionTicket)
                     {
                         SendNewSessionTicketMessage(mTlsServer.GetNewSessionTicket());
-                        SendChangeCipherSpecMessage();
                     }
                     this.mConnectionState = CS_SERVER_SESSION_TICKET;
 
+                    SendChangeCipherSpecMessage();
                     SendFinishedMessage();
                     this.mConnectionState = CS_SERVER_FINISHED;
-                    this.mConnectionState = CS_END;
+
+                    CompleteHandshake();
                     break;
                 }
                 default:
@@ -341,28 +386,39 @@ namespace Org.BouncyCastle.Crypto.Tls
             }
         }
 
-        protected override void HandleWarningMessage(byte description)
+        protected override void HandleAlertWarningMessage(byte alertDescription)
         {
-            switch (description)
+            base.HandleAlertWarningMessage(alertDescription);
+
+            switch (alertDescription)
             {
             case AlertDescription.no_certificate:
             {
                 /*
-                 * SSL 3.0 If the server has sent a certificate request Message, the client must Send
+                 * SSL 3.0 If the server has sent a certificate request Message, the client must send
                  * either the certificate message or a no_certificate alert.
                  */
-                if (TlsUtilities.IsSsl(Context) && mCertificateRequest != null)
+                if (TlsUtilities.IsSsl(Context) && this.mCertificateRequest != null)
                 {
-                    NotifyClientCertificate(Certificate.EmptyChain);
+                    switch (this.mConnectionState)
+                    {
+                    case CS_SERVER_HELLO_DONE:
+                    case CS_CLIENT_SUPPLEMENTAL_DATA:
+                    {
+                        if (mConnectionState < CS_CLIENT_SUPPLEMENTAL_DATA)
+                        {
+                            mTlsServer.ProcessClientSupplementalData(null);
+                        }
+
+                        NotifyClientCertificate(Certificate.EmptyChain);
+                        this.mConnectionState = CS_CLIENT_CERTIFICATE;
+                        return;
+                    }
+                    }
                 }
-                break;
+                throw new TlsFatalAlert(AlertDescription.unexpected_message);
             }
-            default:
-            {
-                base.HandleWarningMessage(description);
-                break;
-            }
-            }
+            } 
         }
 
         protected virtual void NotifyClientCertificate(Certificate clientCertificate)
@@ -415,6 +471,9 @@ namespace Org.BouncyCastle.Crypto.Tls
 
         protected virtual void ReceiveCertificateVerifyMessage(MemoryStream buf)
         {
+            if (mCertificateRequest == null)
+                throw new InvalidOperationException();
+
             DigitallySigned clientCertificateVerify = DigitallySigned.Parse(Context, buf);
 
             AssertEmpty(buf);
@@ -422,10 +481,13 @@ namespace Org.BouncyCastle.Crypto.Tls
             // Verify the CertificateVerify message contains a correct signature.
             try
             {
+                SignatureAndHashAlgorithm signatureAlgorithm = clientCertificateVerify.Algorithm;
+
                 byte[] hash;
                 if (TlsUtilities.IsTlsV12(Context))
                 {
-                    hash = mPrepareFinishHash.GetFinalHash(clientCertificateVerify.Algorithm.Hash);
+                    TlsUtilities.VerifySupportedSignatureAlgorithm(mCertificateRequest.SupportedSignatureAlgorithms, signatureAlgorithm);
+                    hash = mPrepareFinishHash.GetFinalHash(signatureAlgorithm.Hash);
                 }
                 else
                 {
@@ -438,11 +500,12 @@ namespace Org.BouncyCastle.Crypto.Tls
 
                 TlsSigner tlsSigner = TlsUtilities.CreateTlsSigner((byte)mClientCertificateType);
                 tlsSigner.Init(Context);
-                if (!tlsSigner.VerifyRawSignature(clientCertificateVerify.Algorithm,
-                    clientCertificateVerify.Signature, publicKey, hash))
-                {
+                if (!tlsSigner.VerifyRawSignature(signatureAlgorithm, clientCertificateVerify.Signature, publicKey, hash))
                     throw new TlsFatalAlert(AlertDescription.decrypt_error);
-                }
+            }
+            catch (TlsFatalAlert e)
+            {
+                throw e;
             }
             catch (Exception e)
             {
@@ -496,7 +559,19 @@ namespace Org.BouncyCastle.Crypto.Tls
              */
             this.mClientExtensions = ReadExtensions(buf);
 
+            /*
+             * TODO[resumption] Check RFC 7627 5.4. for required behaviour 
+             */
+
+            /*
+             * RFC 7627 4. Clients and servers SHOULD NOT accept handshakes that do not use the extended
+             * master secret [..]. (and see 5.2, 5.3)
+             */
             this.mSecurityParameters.extendedMasterSecret = TlsExtensionsUtilities.HasExtendedMasterSecretExtension(mClientExtensions);
+            if (!mSecurityParameters.IsExtendedMasterSecret && mTlsServer.RequiresExtendedMasterSecret())
+            {
+                throw new TlsFatalAlert(AlertDescription.handshake_failure);
+            }
 
             ContextAdmin.SetClientVersion(client_version);
 
@@ -551,6 +626,9 @@ namespace Org.BouncyCastle.Crypto.Tls
 
             if (mClientExtensions != null)
             {
+                // NOTE: Validates the padding extension data, if present
+                TlsExtensionsUtilities.GetPaddingExtension(mClientExtensions);
+
                 mTlsServer.ProcessClientExtensions(mClientExtensions);
             }
         }
@@ -561,16 +639,20 @@ namespace Org.BouncyCastle.Crypto.Tls
 
             AssertEmpty(buf);
 
+            if (TlsUtilities.IsSsl(Context))
+            {
+                EstablishMasterSecret(Context, mKeyExchange);
+            }
+
             this.mPrepareFinishHash = mRecordStream.PrepareToFinish();
             this.mSecurityParameters.sessionHash = GetCurrentPrfHash(Context, mPrepareFinishHash, null);
 
-            EstablishMasterSecret(Context, mKeyExchange);
-            mRecordStream.SetPendingConnectionState(Peer.GetCompression(), Peer.GetCipher());
-
-            if (!mExpectSessionTicket)
+            if (!TlsUtilities.IsSsl(Context))
             {
-                SendChangeCipherSpecMessage();
+                EstablishMasterSecret(Context, mKeyExchange);
             }
+
+            mRecordStream.SetPendingConnectionState(Peer.GetCompression(), Peer.GetCipher());
         }
 
         protected virtual void SendCertificateRequestMessage(CertificateRequest certificateRequest)
@@ -607,16 +689,18 @@ namespace Org.BouncyCastle.Crypto.Tls
         {
             HandshakeMessage message = new HandshakeMessage(HandshakeType.server_hello);
 
-            ProtocolVersion server_version = mTlsServer.GetServerVersion();
-            if (!server_version.IsEqualOrEarlierVersionOf(Context.ClientVersion))
-                throw new TlsFatalAlert(AlertDescription.internal_error);
+            {
+                ProtocolVersion server_version = mTlsServer.GetServerVersion();
+                if (!server_version.IsEqualOrEarlierVersionOf(Context.ClientVersion))
+                    throw new TlsFatalAlert(AlertDescription.internal_error);
 
-            mRecordStream.ReadVersion = server_version;
-            mRecordStream.SetWriteVersion(server_version);
-            mRecordStream.SetRestrictReadVersion(true);
-            ContextAdmin.SetServerVersion(server_version);
+                mRecordStream.ReadVersion = server_version;
+                mRecordStream.SetWriteVersion(server_version);
+                mRecordStream.SetRestrictReadVersion(true);
+                ContextAdmin.SetServerVersion(server_version);
 
-            TlsUtilities.WriteVersion(server_version, message);
+                TlsUtilities.WriteVersion(server_version, message);
+            }
 
             message.Write(this.mSecurityParameters.serverRandom);
 
@@ -630,7 +714,7 @@ namespace Org.BouncyCastle.Crypto.Tls
             if (!Arrays.Contains(mOfferedCipherSuites, selectedCipherSuite)
                 || selectedCipherSuite == CipherSuite.TLS_NULL_WITH_NULL_NULL
                 || CipherSuite.IsScsv(selectedCipherSuite)
-                || !TlsUtilities.IsValidCipherSuiteForVersion(selectedCipherSuite, server_version))
+                || !TlsUtilities.IsValidCipherSuiteForVersion(selectedCipherSuite, Context.ServerVersion))
             {
                 throw new TlsFatalAlert(AlertDescription.internal_error);
             }
@@ -646,7 +730,7 @@ namespace Org.BouncyCastle.Crypto.Tls
             TlsUtilities.WriteUint16(selectedCipherSuite, message);
             TlsUtilities.WriteUint8(selectedCompressionMethod, message);
 
-            this.mServerExtensions = mTlsServer.GetServerExtensions();
+            this.mServerExtensions = TlsExtensionsUtilities.EnsureExtensionsInitialised(mTlsServer.GetServerExtensions());
 
             /*
              * RFC 5746 3.6. Server Behavior: Initial Handshake
@@ -670,14 +754,16 @@ namespace Org.BouncyCastle.Crypto.Tls
                      * If the secure_renegotiation flag is set to TRUE, the server MUST include an empty
                      * "renegotiation_info" extension in the ServerHello message.
                      */
-                    this.mServerExtensions = TlsExtensionsUtilities.EnsureExtensionsInitialised(mServerExtensions);
                     this.mServerExtensions[ExtensionType.renegotiation_info] = CreateRenegotiationInfo(TlsUtilities.EmptyBytes);
                 }
             }
 
-            if (mSecurityParameters.extendedMasterSecret)
+            if (TlsUtilities.IsSsl(mTlsServerContext))
             {
-                this.mServerExtensions = TlsExtensionsUtilities.EnsureExtensionsInitialised(mServerExtensions);
+                mSecurityParameters.extendedMasterSecret = false;
+            }
+            else if (mSecurityParameters.IsExtendedMasterSecret)
+            {
                 TlsExtensionsUtilities.AddExtendedMasterSecretExtension(mServerExtensions);
             }
 
@@ -687,7 +773,7 @@ namespace Org.BouncyCastle.Crypto.Tls
              * extensions.
              */
 
-            if (this.mServerExtensions != null)
+            if (this.mServerExtensions.Count > 0)
             {
                 this.mSecurityParameters.encryptThenMac = TlsExtensionsUtilities.HasEncryptThenMacExtension(mServerExtensions);
 
@@ -711,23 +797,17 @@ namespace Org.BouncyCastle.Crypto.Tls
                 WriteExtensions(message, this.mServerExtensions);
             }
 
-            if (mSecurityParameters.maxFragmentLength >= 0)
-            {
-                int plainTextLimit = 1 << (8 + mSecurityParameters.maxFragmentLength);
-                mRecordStream.SetPlaintextLimit(plainTextLimit);
-            }
-
             mSecurityParameters.prfAlgorithm = GetPrfAlgorithm(Context, mSecurityParameters.CipherSuite);
 
             /*
-             * RFC 5264 7.4.9. Any cipher suite which does not explicitly specify verify_data_length has
+             * RFC 5246 7.4.9. Any cipher suite which does not explicitly specify verify_data_length has
              * a verify_data_length equal to 12. This includes all existing cipher suites.
              */
             mSecurityParameters.verifyDataLength = 12;
 
-            message.WriteToRecordStream(this);
+            ApplyMaxFragmentLengthExtension();
 
-            this.mRecordStream.NotifyHelloComplete();
+            message.WriteToRecordStream(this);
         }
 
         protected virtual void SendServerHelloDoneMessage()

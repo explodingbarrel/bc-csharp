@@ -1,35 +1,36 @@
+#if !LIB
 using System;
 
 using NUnit.Core;
 using NUnit.Framework;
-
+using Org.BouncyCastle.Asn1.Tests;
 using Org.BouncyCastle.Utilities.Test;
 
 namespace Org.BouncyCastle.Cms.Tests
 {
     public class AllTests
     {
-        public static void Main(
-			string[] args)
+        public static void Main(string[] args)
         {
-            //junit.textui.TestRunner.run(suite());
-            EventListener el = new NullListener();
-            suite().Run(el,null);
+            Suite.Run(new NullListener(), NUnit.Core.TestFilter.Empty);
         }
 
-		public static TestSuite suite()
+        [Suite]
+        public static TestSuite Suite
         {
-            TestSuite suite = new TestSuite("CMS Tests");
-
-			suite.Add(new CompressedDataTest());
-            suite.Add(new CompressedDataStreamTest());
-			suite.Add(new EnvelopedDataTest());
-			suite.Add(new EnvelopedDataStreamTest());
-			suite.Add(new Rfc4134Test());
-			suite.Add(new SignedDataTest());
-			suite.Add(new SignedDataStreamTest());
-
-			return suite;
+            get
+            {
+                TestSuite suite = new TestSuite("CMS Tests");               
+                suite.Add(new CompressedDataTest());
+                suite.Add(new CompressedDataStreamTest());
+                suite.Add(new EnvelopedDataTest());
+                suite.Add(new EnvelopedDataStreamTest());
+                suite.Add(new Rfc4134Test());
+                suite.Add(new SignedDataTest());
+                suite.Add(new SignedDataStreamTest());
+                return suite;
+            }
         }
     }
 }
+#endif

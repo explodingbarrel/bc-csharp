@@ -23,6 +23,7 @@ namespace Org.BouncyCastle.Crypto.Tests
             new DeterministicDsaTest(),
             new Gost3410Test(),
             new ECGost3410Test(),
+            new ECGost3410_2012Test(),
             new EcIesTest(),
             new EcNrTest(),
             new MacTest(),
@@ -34,6 +35,7 @@ namespace Org.BouncyCastle.Crypto.Tests
             new RC6Test(),
             new RijndaelTest(),
             new SerpentTest(),
+            new TnepresTest(),
             new CamelliaTest(),
             new CamelliaLightTest(),
             new DigestRandomNumberTest(),
@@ -89,6 +91,7 @@ namespace Org.BouncyCastle.Crypto.Tests
             new Kdf1GeneratorTest(),
             new Kdf2GeneratorTest(),
             new Mgf1GeneratorTest(),
+            new HkdfGeneratorTest(),
             new DHKekGeneratorTest(),
             new ECDHKekGeneratorTest(),
             new ShortenedDigestTest(),
@@ -118,17 +121,31 @@ namespace Org.BouncyCastle.Crypto.Tests
             new SipHashTest(),
             new Poly1305Test(),
             new OcbTest(),
-            new SM3DigestTest()
+            new NonMemoableDigestTest(),
+            new StreamCipherResetTest(),
+            new SM3DigestTest(),
+            new BCryptTest(),
+            new OpenBsdBCryptTest(),
+            new X931SignerTest(),
+            new Blake2bDigestTest(),
+            new Blake2sDigestTest(),
+            new KeccakDigestTest(),
+            new ShakeDigestTest(),
+            new SM2EngineTest(),
+            new SM2KeyExchangeTest(),
+            new SM2SignerTest(),
+            new SM4Test(),
+            new X25519Test(),
+            new X448Test(),
+            new Ed25519Test(),
+            new Ed448Test(),
         };
 
-        public static void Main(
-            string[] args)
+        public static void Main(string[] args)
         {
-            for (int i = 0; i != tests.Length; i++)
+            foreach (ITest test in tests)
             {
-                ITestResult result = tests[i].Perform();
-
-                Console.WriteLine(result);
+                SimpleTest.RunTest(test);
             }
         }
     }

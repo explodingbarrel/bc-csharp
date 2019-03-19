@@ -34,7 +34,7 @@ namespace Org.BouncyCastle.Crypto.Tls
         {
             switch (extensionType)
             {
-            case ExtensionType.elliptic_curves:
+            case ExtensionType.supported_groups:
                 /*
                  * Exception added based on field reports that some servers do send this, although the
                  * Supported Elliptic Curves Extension is clearly intended to be client-only. If
@@ -42,6 +42,16 @@ namespace Org.BouncyCastle.Crypto.Tls
                  */
                 TlsEccUtilities.ReadSupportedEllipticCurvesExtension(extensionData);
                 return true;
+
+            case ExtensionType.ec_point_formats:
+                /*
+                 * Exception added based on field reports that some servers send this even when they
+                 * didn't negotiate an ECC cipher suite. If present, we still require that it is a valid
+                 * ECPointFormatList.
+                 */
+                TlsEccUtilities.ReadSupportedPointFormatsExtension(extensionData);
+                return true;
+
             default:
                 return false;
             }
@@ -66,22 +76,15 @@ namespace Org.BouncyCastle.Crypto.Tls
             return null;
         }
 
-        /**
-         * RFC 5246 E.1. "TLS clients that wish to negotiate with older servers MAY send any value
-         * {03,XX} as the record layer version number. Typical values would be {03,00}, the lowest
-         * version number supported by the client, and the value of ClientHello.client_version. No
-         * single value will guarantee interoperability with all old servers, but this is a complex
-         * topic beyond the scope of this document."
-         */
         public virtual ProtocolVersion ClientHelloRecordLayerVersion
         {
             get
             {
                 // "{03,00}"
-                // return ProtocolVersion.SSLv3;
+                //return ProtocolVersion.SSLv3;
 
                 // "the lowest version number supported by the client"
-                // return getMinimumVersion();
+                //return MinimumVersion;
 
                 // "the value of ClientHello.client_version"
                 return ClientVersion;
@@ -96,9 +99,9 @@ namespace Org.BouncyCastle.Crypto.Tls
         public virtual bool IsFallback
         {
             /*
-             * draft-ietf-tls-downgrade-scsv-00 4. [..] is meant for use by clients that repeat a
-             * connection attempt with a downgraded protocol in order to avoid interoperability problems
-             * with legacy servers.
+             * RFC 7507 4. The TLS_FALLBACK_SCSV cipher suite value is meant for use by clients that
+             * repeat a connection attempt with a downgraded protocol (perform a "fallback retry") in
+             * order to work around interoperability problems with legacy servers.
              */
             get { return false; }
         }
@@ -117,27 +120,7 @@ namespace Org.BouncyCastle.Crypto.Tls
             {
                 // TODO Provide a way for the user to specify the acceptable hash/signature algorithms.
 
-                byte[] hashAlgorithms = new byte[]{ HashAlgorithm.sha512, HashAlgorithm.sha384, HashAlgorithm.sha256,
-                    HashAlgorithm.sha224, HashAlgorithm.sha1 };
-
-                // TODO Sort out ECDSA signatures and add them as the preferred option here
-                byte[] signatureAlgorithms = new byte[]{ SignatureAlgorithm.rsa };
-
-                this.mSupportedSignatureAlgorithms = Platform.CreateArrayList();
-                for (int i = 0; i < hashAlgorithms.Length; ++i)
-                {
-                    for (int j = 0; j < signatureAlgorithms.Length; ++j)
-                    {
-                        this.mSupportedSignatureAlgorithms.Add(new SignatureAndHashAlgorithm(hashAlgorithms[i],
-                            signatureAlgorithms[j]));
-                    }
-                }
-
-                /*
-                 * RFC 5264 7.4.3. Currently, DSA [DSS] may only be used with SHA-1.
-                 */
-                this.mSupportedSignatureAlgorithms.Add(new SignatureAndHashAlgorithm(HashAlgorithm.sha1,
-                    SignatureAlgorithm.dsa));
+                this.mSupportedSignatureAlgorithms = TlsUtilities.GetDefaultSupportedSignatureAlgorithms();
 
                 clientExtensions = TlsExtensionsUtilities.EnsureExtensionsInitialised(clientExtensions);
 
@@ -215,7 +198,7 @@ namespace Org.BouncyCastle.Crypto.Tls
                  */
                 CheckForUnexpectedServerExtension(serverExtensions, ExtensionType.signature_algorithms);
 
-                CheckForUnexpectedServerExtension(serverExtensions, ExtensionType.elliptic_curves);
+                CheckForUnexpectedServerExtension(serverExtensions, ExtensionType.supported_groups);
 
                 if (TlsEccUtilities.IsEccCipherSuite(this.mSelectedCipherSuite))
                 {
@@ -225,6 +208,11 @@ namespace Org.BouncyCastle.Crypto.Tls
                 {
                     CheckForUnexpectedServerExtension(serverExtensions, ExtensionType.ec_point_formats);
                 }
+
+                /*
+                 * RFC 7685 3. The server MUST NOT echo the extension.
+                 */
+                CheckForUnexpectedServerExtension(serverExtensions, ExtensionType.padding);
             }
         }
 
@@ -261,6 +249,14 @@ namespace Org.BouncyCastle.Crypto.Tls
                  */
                 throw new TlsFatalAlert(AlertDescription.internal_error);
             }
+        }
+
+        public override TlsCipher GetCipher()
+        {
+            int encryptionAlgorithm = TlsUtilities.GetEncryptionAlgorithm(mSelectedCipherSuite);
+            int macAlgorithm = TlsUtilities.GetMacAlgorithm(mSelectedCipherSuite);
+
+            return mCipherFactory.CreateCipher(mContext, encryptionAlgorithm, macAlgorithm);
         }
 
         public virtual void NotifyNewSessionTicket(NewSessionTicket newSessionTicket)

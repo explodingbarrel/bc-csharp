@@ -8,6 +8,19 @@ namespace Org.BouncyCastle.Utilities
     /// <summary> General array utilities.</summary>
     public abstract class Arrays
     {
+        public static readonly byte[] EmptyBytes = new byte[0];
+        public static readonly int[] EmptyInts = new int[0];
+
+        public static bool AreAllZeroes(byte[] buf, int off, int len)
+        {
+            uint bits = 0;
+            for (int i = 0; i < len; ++i)
+            {
+                bits |= buf[off + i];
+            }
+            return bits == 0;
+        }
+
         public static bool AreEqual(
             bool[]  a,
             bool[]  b)
@@ -311,6 +324,48 @@ namespace Org.BouncyCastle.Utilities
             return hc;
         }
 
+        [CLSCompliantAttribute(false)]
+        public static int GetHashCode(ulong[] data)
+        {
+            if (data == null)
+                return 0;
+
+            int i = data.Length;
+            int hc = i + 1;
+
+            while (--i >= 0)
+            {
+                ulong di = data[i];
+                hc *= 257;
+                hc ^= (int)di;
+                hc *= 257;
+                hc ^= (int)(di >> 32);
+            }
+
+            return hc;
+        }
+
+        [CLSCompliantAttribute(false)]
+        public static int GetHashCode(ulong[] data, int off, int len)
+        {
+            if (data == null)
+                return 0;
+
+            int i = len;
+            int hc = i + 1;
+
+            while (--i >= 0)
+            {
+                ulong di = data[off + i];
+                hc *= 257;
+                hc ^= (int)di;
+                hc *= 257;
+                hc ^= (int)(di >> 32);
+            }
+
+            return hc;
+        }
+
         public static byte[] Clone(
             byte[] data)
         {
@@ -411,6 +466,14 @@ namespace Org.BouncyCastle.Utilities
             while (i > 0)
             {
                 buf[--i] = b;
+            }
+        }
+
+        public static void Fill(byte[] buf, int from, int to, byte b)
+        {
+            for (int i = from; i < to; ++i)
+            {
+                buf[i] = b;
             }
         }
 
@@ -549,6 +612,35 @@ namespace Org.BouncyCastle.Utilities
             return rv;
         }
 
+        public static byte[] ConcatenateAll(params byte[][] vs)
+        {
+            byte[][] nonNull = new byte[vs.Length][];
+            int count = 0;
+            int totalLength = 0;
+
+            for (int i = 0; i < vs.Length; ++i)
+            {
+                byte[] v = vs[i];
+                if (v != null)
+                {
+                    nonNull[count++] = v;
+                    totalLength += v.Length;
+                }
+            }
+
+            byte[] result = new byte[totalLength];
+            int pos = 0;
+
+            for (int j = 0; j < count; ++j)
+            {
+                byte[] v = nonNull[j];
+                Array.Copy(v, 0, result, pos, v.Length);
+                pos += v.Length;
+            }
+
+            return result;
+        }
+
         public static int[] Concatenate(int[] a, int[] b)
         {
             if (a == null)
@@ -605,6 +697,22 @@ namespace Org.BouncyCastle.Utilities
 
             int p1 = 0, p2 = a.Length;
             byte[] result = new byte[p2];
+
+            while (--p2 >= 0)
+            {
+                result[p2] = a[p1++];
+            }
+
+            return result;
+        }
+
+        public static int[] Reverse(int[] a)
+        {
+            if (a == null)
+                return null;
+
+            int p1 = 0, p2 = a.Length;
+            int[] result = new int[p2];
 
             while (--p2 >= 0)
             {

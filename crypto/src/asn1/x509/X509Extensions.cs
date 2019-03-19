@@ -164,6 +164,11 @@ namespace Org.BouncyCastle.Asn1.X509
 		 */
 		public static readonly DerObjectIdentifier TargetInformation = new DerObjectIdentifier("2.5.29.55");
 
+        /**
+         * Expired Certificates on CRL extension
+         */
+        public static readonly DerObjectIdentifier ExpiredCertsOnCrl = new DerObjectIdentifier("2.5.29.60");
+
         private readonly IDictionary extensions = Platform.CreateHashtable();
         private readonly IList ordering;
 
@@ -192,7 +197,7 @@ namespace Org.BouncyCastle.Asn1.X509
                 return GetInstance(((Asn1TaggedObject) obj).GetObject());
             }
 
-			throw new ArgumentException("unknown object in factory: " + obj.GetType().Name, "obj");
+            throw new ArgumentException("unknown object in factory: " + Platform.GetTypeName(obj), "obj");
 		}
 
 		/**
@@ -219,7 +224,10 @@ namespace Org.BouncyCastle.Asn1.X509
 
 				Asn1OctetString octets = Asn1OctetString.GetInstance(s[s.Count - 1].ToAsn1Object());
 
-				extensions.Add(oid, new X509Extension(isCritical, octets));
+                if (extensions.Contains(oid))
+                    throw new ArgumentException("repeated extension found: " + oid);
+
+                extensions.Add(oid, new X509Extension(isCritical, octets));
 				ordering.Add(oid);
 			}
         }
@@ -278,7 +286,7 @@ namespace Org.BouncyCastle.Asn1.X509
             }
         }
 
-#if !SILVERLIGHT
+#if !(SILVERLIGHT || PORTABLE)
 		/**
          * constructor from a table of extensions.
          * <p>
